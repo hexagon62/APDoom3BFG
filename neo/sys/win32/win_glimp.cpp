@@ -451,7 +451,7 @@ bool R_GetModeListForDisplay( const int requestedDisplayNum, idList<vidMode_t>& 
 		// get the monitor for this display
 		if( !( device.StateFlags & ( DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | DISPLAY_DEVICE_PRIMARY_DEVICE ) ) )
 		{
-			// SRS - If requested display number is not attached to desktop, no monitor is present.  In this case we
+			// SRS - If requested display number is not attached to desktop, skip this device. In this case we
 			//       return true with an empty mode list for this display number.  This can result in non-contiguous
 			//       display numbers on Windows, but is better than undefined behaviour for "filled-in" false displays.
 			return true;
@@ -465,7 +465,10 @@ bool R_GetModeListForDisplay( const int requestedDisplayNum, idList<vidMode_t>& 
 					&monitor,
 					0 /* dwFlags */ ) )
 		{
-			continue;
+			// SRS - If EnumDisplayDevices() returns false for device, no monitor is detected.  In this case we
+			//       return true with an empty mode list for this display number.  This can result in non-contiguous
+			//       display numbers on Windows, but is better than undefined behaviour for "filled-in" false displays.
+			return true;
 		}
 
 		DEVMODE	devmode;
@@ -646,7 +649,7 @@ static bool GLW_GetWindowDimensions( const glimpParms_t parms, int& x, int& y, i
 	{
 		displayNotFound = true;
 		displayNum = DisplayPrimary();
-		common->Warning( "Window position out of bounds, falling back to primary display" );
+		common->Warning( "Window position out of bounds, falling back to primary display %d", displayNum + 1 );
 	}
 
 	// get the current monitor position and size on the desktop, assuming
