@@ -572,15 +572,22 @@ int DisplayPrimary()
 	dd.cb = sizeof( DISPLAY_DEVICE );
 
 	int deviceNum = 0;
+	int deviceMin = -1;
 	while( EnumDisplayDevices( NULL, deviceNum, &dd, 0 ) )
 	{
 		if( dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE )
 		{
 			return deviceNum;
 		}
+
+		// SRS - save first device attached to desktop as fallback if primary device not found
+		if( deviceMin < 0 && ( dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP ) )
+		{
+			deviceMin = deviceNum;
+		}
 		deviceNum++;
 	}
-	return -1;
+	return deviceMin;
 }
 
 /*
