@@ -68,30 +68,6 @@ Does not actually free the entityDef.
 */
 void R_FreeEntityDefDerivedData( idRenderEntityLocal* def, bool keepDecals, bool keepCachedDynamicModel )
 {
-	// demo playback needs to free the joints, while normal play
-	// leaves them in the control of the game
-	if( common->ReadDemo() )
-	{
-		if( def->parms.joints )
-		{
-			Mem_Free16( def->parms.joints );
-			def->parms.joints = NULL;
-		}
-		if( def->parms.callbackData )
-		{
-			Mem_Free( def->parms.callbackData );
-			def->parms.callbackData = NULL;
-		}
-		for( int i = 0; i < MAX_RENDERENTITY_GUI; i++ )
-		{
-			if( def->parms.gui[ i ] )
-			{
-				delete def->parms.gui[ i ];
-				def->parms.gui[ i ] = NULL;
-			}
-		}
-	}
-
 	// free all the interactions
 	while( def->firstInteraction != NULL )
 	{
@@ -737,11 +713,13 @@ void R_CreateLightRefs( idRenderLightLocal* light )
 	// we can limit the area references to those visible through the portals from the light center.
 	// We can't do this in the normal case, because shadows are cast from back facing triangles, which
 	// may be in areas not directly visible to the light projection center.
+	/*
 	if( light->parms.prelightModel != NULL && r_useLightPortalFlow.GetBool() && light->lightShader->LightCastsShadows() )
 	{
 		light->world->FlowLightThroughPortals( light );
 	}
 	else
+	*/
 	{
 		// push the light frustum down the BSP tree into areas
 		light->world->PushFrustumIntoTree( NULL, light, light->inverseBaseLightProject, bounds_zeroOneCube );
@@ -798,8 +776,6 @@ void R_DeriveEnvprobeData( RenderEnvprobeLocal* probe )
 	// ------------------------------------
 	// compute the probe projection matrix
 	// ------------------------------------
-
-
 
 	idMat3 axis;
 	axis.Identity();
@@ -873,12 +849,6 @@ void R_CreateEnvprobeRefs( RenderEnvprobeLocal* probe )
 
 void R_FreeEnvprobeDefDerivedData( RenderEnvprobeLocal* probe )
 {
-	// TODO free all the interactions
-	//while( ldef->firstInteraction != NULL )
-	//{
-	//	ldef->firstInteraction->UnlinkAndFree();
-	//}
-
 	// free all the references to the envprobe
 	areaReference_t* nextRef = NULL;
 	for( areaReference_t* lref = probe->references; lref != NULL; lref = nextRef )

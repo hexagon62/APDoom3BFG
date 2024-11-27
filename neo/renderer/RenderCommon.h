@@ -52,34 +52,6 @@ const int FOG_ENTER_SIZE			= 64;
 const float FOG_ENTER				= ( FOG_ENTER_SIZE + 1.0f ) / ( FOG_ENTER_SIZE * 2 );
 
 
-enum demoCommand_t
-{
-	DC_BAD,
-	DC_RENDERVIEW,
-	DC_UPDATE_ENTITYDEF,
-	DC_DELETE_ENTITYDEF,
-	DC_UPDATE_LIGHTDEF,
-	DC_DELETE_LIGHTDEF,
-	DC_LOADMAP,
-	DC_CROP_RENDER,
-	DC_UNCROP_RENDER,
-	DC_CAPTURE_RENDER,
-	DC_END_FRAME,
-	DC_DEFINE_MODEL,
-	DC_SET_PORTAL_STATE,
-	DC_UPDATE_SOUNDOCCLUSION,
-	DC_GUI_MODEL,
-	DC_UPDATE_ENVPROBEDEF,
-	DC_DELETE_ENVPROBEDEF,
-	DC_UPDATE_DECAL,
-	DC_DELETE_DECAL,
-	DC_UPDATE_OVERLAY,
-	DC_DELETE_OVERLAY,
-	DC_CACHE_SKINS,
-	DC_CACHE_PARTICLES,
-	DC_CACHE_MATERIALS,
-};
-
 /*
 ==============================================================================
 
@@ -91,6 +63,15 @@ SURFACES
 #include "ModelDecal.h"
 #include "ModelOverlay.h"
 #include "Interaction.h"
+
+// RB begin
+#define MOC_MULTITHREADED 0
+
+#if MOC_MULTITHREADED
+	class CullingThreadpool;
+#endif
+class MaskedOcclusionCulling;
+// RB end
 
 class idRenderWorldLocal;
 struct viewEntity_t;
@@ -212,8 +193,6 @@ public:
 	int						lastModifiedFrameNum;	// to determine if it is constantly changing,
 	// and should go in the dynamic frame memory, or kept
 	// in the cached memory
-	bool					archived;				// for demo writing
-
 
 	// derived information
 	idPlane					lightProject[4];		// old style light projection where Z and W are flipped and projected lights lightProject[3] is divided by ( zNear + zFar )
@@ -262,18 +241,13 @@ public:
 	int							lastModifiedFrameNum;	// to determine if it is constantly changing,
 	// and should go in the dynamic frame memory, or kept
 	// in the cached memory
-	bool						archived;				// for demo writing
 
 	// derived information
-	//idPlane						lightProject[4];		// old style light projection where Z and W are flipped and projected lights lightProject[3] is divided by ( zNear + zFar )
-	//idRenderMatrix				baseLightProject;		// global xyz1 to projected light strq
 	idRenderMatrix				inverseBaseProbeProject;// transforms the zero-to-one cube to exactly cover the light in world space
 
 	idBounds					globalProbeBounds;
 
 	areaReference_t* 			references;				// each area the light is present in will have a lightRef
-	//idInteraction* 			firstInteraction;		// doubly linked list
-	//idInteraction* 			lastInteraction;
 
 	idImage* 					irradianceImage;		// cubemap image used for diffuse IBL by backend
 	idImage* 					radianceImage;			// cubemap image used for specular IBL by backend
@@ -300,8 +274,6 @@ public:
 	virtual void			RemoveDecals();
 
 	bool					IsDirectlyVisible() const;
-	void					ReadFromDemoFile( class idDemoFile* f );
-	void					WriteToDemoFile( class idDemoFile* f ) const;
 	renderEntity_t			parms;
 
 	float					modelMatrix[16];		// this is just a rearrangement of parms.axis and parms.origin
@@ -314,13 +286,11 @@ public:
 	int						lastModifiedFrameNum;	// to determine if it is constantly changing,
 	// and should go in the dynamic frame memory, or kept
 	// in the cached memory
-	bool					archived;				// for demo writing
 
 	idRenderModel* 			dynamicModel;			// if parms.model->IsDynamicModel(), this is the generated data
 	int						dynamicModelFrameCount;	// continuously animating dynamic models will recreate
 	// dynamicModel if this doesn't == tr.viewCount
 	idRenderModel* 			cachedDynamicModel;
-
 
 	// the local bounds used to place entityRefs, either from parms for dynamic entities, or a model bounds
 	idBounds				localReferenceBounds;
@@ -511,7 +481,7 @@ struct calcEnvprobeParms_t
 	idStr							filename;
 
 	// output
-	halfFloat_t*					outBuffer;				// HDR R11G11B11F packed octahedron atlas
+	halfFloat_t*					outBuffer;				// HDR RGB16F packed octahedron atlas
 	int								time;					// execution time in milliseconds
 };
 
@@ -535,7 +505,7 @@ struct calcLightGridPointParms_t
 	SphericalHarmonicsT<idVec3, 4>	shRadiance;				// L4 Spherical Harmonics
 #endif
 
-	halfFloat_t*					outBuffer;				// HDR R11G11B11F octahedron LIGHTGRID_IRRADIANCE_SIZE^2
+	halfFloat_t*					outBuffer;				// HDR RGB16F octahedron LIGHTGRID_IRRADIANCE_SIZE^2
 	int								time;					// execution time in milliseconds
 };
 // RB end
@@ -661,6 +631,8 @@ struct viewDef_t
 	idVec4				radianceImageBlends;		// blending weights
 
 	Framebuffer*		targetRender;				// SP: The framebuffer to render to
+
+	int					taaFrameCount;				// RB: so we have the same frame index in frontend and backend
 };
 
 
@@ -854,12 +826,18 @@ enum bindingLayoutType_t
 	// NO GPU SKINNING ANYMORE
 	BINDING_LAYOUT_POST_PROCESS_INGAME,
 	BINDING_LAYOUT_POST_PROCESS_FINAL,
+	BINDING_LAYOUT_POST_PROCESS_FINAL2,
+	BINDING_LAYOUT_POST_PROCESS_CRT,
 
 	BINDING_LAYOUT_BLIT,
 	BINDING_LAYOUT_DRAW_AO,
 	BINDING_LAYOUT_DRAW_AO1,
 
 	BINDING_LAYOUT_BINK_VIDEO,
+
+	// SMAA
+	BINDING_LAYOUT_SMAA_EDGE_DETECTION,
+	BINDING_LAYOUT_SMAA_WEIGHT_CALC,
 
 	// NVRHI render passes specific
 	BINDING_LAYOUT_TAA_MOTION_VECTORS,
@@ -902,13 +880,10 @@ public:
 	virtual void			ShutdownOpenGL();
 	virtual bool			IsOpenGLRunning() const;
 	virtual bool			IsFullScreen() const;
-	virtual stereo3DMode_t	GetStereo3DMode() const;
-	virtual bool			HasQuadBufferSupport() const;
-	virtual bool			IsStereoScopicRenderingSupported() const;
-	virtual stereo3DMode_t	GetStereoScopicRenderingMode() const;
-	virtual void			EnableStereoScopicRendering( const stereo3DMode_t mode ) const;
 	virtual int				GetWidth() const;
 	virtual int				GetHeight() const;
+	virtual int				GetNativeWidth() const;
+	virtual int				GetNativeHeight() const;
 	virtual int				GetVirtualWidth() const;
 	virtual int				GetVirtualHeight() const;
 	virtual float			GetPixelAspect() const;
@@ -942,12 +917,9 @@ public:
 
 	virtual void			DrawCRTPostFX(); // RB
 
-	virtual void			WriteDemoPics();
-	virtual void			WriteEndFrame();
-	virtual void			DrawDemoPics();
-	virtual const emptyCommand_t* 	SwapCommandBuffers( uint64* frontEndMicroSec, uint64* backEndMicroSec, uint64* shadowMicroSec, uint64* gpuMicroSec, backEndCounters_t* bc, performanceCounters_t* pc );
+	virtual const emptyCommand_t* 	SwapCommandBuffers( uint64* frontEndMicroSec, uint64* backEndMicroSec, uint64* mocMicroSec, uint64* gpuMicroSec, backEndCounters_t* bc, performanceCounters_t* pc );
 
-	virtual void					SwapCommandBuffers_FinishRendering( uint64* frontEndMicroSec, uint64* backEndMicroSec, uint64* shadowMicroSec, uint64* gpuMicroSec, backEndCounters_t* bc, performanceCounters_t* pc );
+	virtual void					SwapCommandBuffers_FinishRendering( uint64* frontEndMicroSec, uint64* backEndMicroSec, uint64* mocMicroSec, uint64* gpuMicroSec, backEndCounters_t* bc, performanceCounters_t* pc );
 	virtual const emptyCommand_t* 	SwapCommandBuffers_FinishCommandBuffers();
 
 	virtual void			RenderCommandBuffers( const emptyCommand_t* commandBuffers );
@@ -984,8 +956,6 @@ public:
 	// internal functions
 	idRenderSystemLocal();
 	~idRenderSystemLocal();
-
-	void					UpdateStereo3DMode();
 
 	void					Clear();
 	void					GetCroppedViewport( idScreenRect* viewport );
@@ -1076,6 +1046,17 @@ public:
 	idList<calcLightGridPointParms_t*>	lightGridJobs;
 
 	idRenderBackend			backend;
+
+#if defined(USE_INTRINSICS_SSE)
+
+#if MOC_MULTITHREADED
+	CullingThreadpool*		maskedOcclusionThreaded;
+#endif
+	MaskedOcclusionCulling*	maskedOcclusionCulling;
+	idVec4					maskedUnitCubeVerts[8];
+	idVec4					maskedZeroOneCubeVerts[8];
+	unsigned int			maskedZeroOneCubeIndexes[36];
+#endif
 
 private:
 	bool					bInitialized;
@@ -1175,7 +1156,6 @@ extern idCVar r_showUnsmoothedTangents;		// highlight geometry rendered with uns
 extern idCVar r_showSilhouette;				// highlight edges that are casting shadow planes
 extern idCVar r_showVertexColor;			// draws all triangles with the solid vertex color
 extern idCVar r_showUpdates;				// report entity and light updates and ref counts
-extern idCVar r_showDemo;					// report reads and writes to the demo file
 extern idCVar r_showDynamic;				// report stats on dynamic surface generation
 extern idCVar r_showIntensity;				// draw the screen colors based on intensity, red = 0, green = 128, blue = 255
 extern idCVar r_showTrace;					// show the intersection of an eye trace with the world
@@ -1233,9 +1213,9 @@ extern idCVar r_debugRenderToTexture;
 extern idCVar stereoRender_enable;
 extern idCVar stereoRender_deGhost;			// subtract from opposite eye to reduce ghosting
 
+// RB begin
 extern idCVar r_useGPUSkinning;
 
-// RB begin
 extern idCVar r_shadowMapAtlasSize;
 extern idCVar r_shadowMapFrustumFOV;
 extern idCVar r_shadowMapSingleSide;
@@ -1296,13 +1276,19 @@ extern idCVar r_useCRTPostFX;
 extern idCVar r_crtCurvature;
 extern idCVar r_crtVignette;
 
+extern idCVar r_useMaskedOcclusionCulling;
+
 enum RenderMode
 {
 	RENDERMODE_DOOM,
+	RENDERMODE_2BIT,
+	RENDERMODE_2BIT_HIGHRES,
 	RENDERMODE_C64,
 	RENDERMODE_C64_HIGHRES,
 	RENDERMODE_CPC,
 	RENDERMODE_CPC_HIGHRES,
+	RENDERMODE_NES,
+	RENDERMODE_NES_HIGHRES,
 	RENDERMODE_GENESIS,
 	RENDERMODE_GENESIS_HIGHRES,
 	RENDERMODE_PSX,
@@ -1312,6 +1298,9 @@ extern idCVar r_retroDitherScale;
 
 extern idCVar r_renderMode;
 extern idCVar image_pixelLook;
+
+extern idCVar r_psxVertexJitter;
+extern idCVar r_psxAffineTextures;
 // RB end
 
 /*
@@ -1390,7 +1379,6 @@ struct glimpParms_t
 	int			fullScreen;		// 0 = windowed, otherwise 1 based monitor number to go full screen on
 	// -1 = borderless window for spanning multiple displays
 	bool		startMaximized = false;
-	bool		stereo;
 	int			displayHz;
 	int			multiSamples;
 };
@@ -1574,6 +1562,16 @@ void R_LinkDrawSurfToView( drawSurf_t* drawSurf, viewDef_t* viewDef );
 void R_AddModels();
 
 /*
+============================================================
+
+TR_FRONTEND_MASKED_OCCLUSION_CULLING
+
+============================================================
+*/
+
+void R_FillMaskedOcclusionBufferWithModels( viewDef_t* viewDef );
+
+/*
 =============================================================
 
 TR_FRONTEND_DEFORM
@@ -1623,6 +1621,11 @@ void				R_AllocStaticTriSurfDominantTris( srfTriangles_t* tri, int numVerts );
 void				R_AllocStaticTriSurfMirroredVerts( srfTriangles_t* tri, int numMirroredVerts );
 void				R_AllocStaticTriSurfDupVerts( srfTriangles_t* tri, int numDupVerts );
 
+// RB begin
+void				R_AllocStaticTriSurfMocIndexes( srfTriangles_t* tri, int numIndexes );
+void				R_AllocStaticTriSurfMocVerts( srfTriangles_t* tri, int numVerts );
+// RB end
+
 srfTriangles_t* 	R_CopyStaticTriSurf( const srfTriangles_t* tri );
 
 void				R_ResizeStaticTriSurfVerts( srfTriangles_t* tri, int numVerts );
@@ -1639,6 +1642,7 @@ int					R_TriSurfMemory( const srfTriangles_t* tri );
 void				R_BoundTriSurf( srfTriangles_t* tri );
 void				R_RemoveDuplicatedTriangles( srfTriangles_t* tri );
 void				R_CreateSilIndexes( srfTriangles_t* tri );
+void				R_CreateMaskedOcclusionCullingTris( srfTriangles_t* tri ); // RB
 void				R_RemoveDegenerateTriangles( srfTriangles_t* tri );
 void				R_RemoveUnusedVerts( srfTriangles_t* tri );
 void				R_RangeCheckIndexes( const srfTriangles_t* tri );
@@ -1664,6 +1668,7 @@ void				R_CreateStaticBuffersForTri( srfTriangles_t& tri, nvrhi::ICommandList* c
 
 // RB
 idVec3				R_ClosestPointPointTriangle( const idVec3& point, const idVec3& vertex1, const idVec3& vertex2, const idVec3& vertex3 );
+idVec3				R_ClosestPointOnLineSegment( const idVec3& point, const idVec3& lineStart, const idVec3& lineEnd, float& t );
 
 // deformable meshes precalculate as much as possible from a base frame, then generate
 // complete srfTriangles_t from just a new set of vertexes

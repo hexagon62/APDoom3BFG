@@ -435,9 +435,11 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::LoadData
 	originalVolume = s_volume_dB.GetFloat();
 	// RB begin
 	//originalShadowMapping = r_useShadowMapping.GetInteger();
-	originalSSAO = r_useSSAO.GetInteger();
+	originalRenderMode = r_renderMode.GetInteger();
 	originalAmbientBrightness = r_forceAmbient.GetFloat();
+	originalSSAO = r_useSSAO.GetInteger();
 	originalPostProcessing = r_useFilmicPostFX.GetInteger();
+	originalCRTPostFX = r_useCRTPostFX.GetInteger();
 	// RB end
 
 	const int fullscreen = r_fullscreen.GetInteger();
@@ -597,10 +599,11 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::AdjustFi
 				ANTI_ALIASING_MSAA_4X,
 			};
 #else
-			static const int numValues = 2;
+			static const int numValues = 3;
 			static const int values[numValues] =
 			{
 				ANTI_ALIASING_NONE,
+				ANTI_ALIASING_SMAA_1X,
 				ANTI_ALIASING_TAA,
 			};
 #endif
@@ -611,8 +614,8 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::AdjustFi
 		// RB begin
 		case SYSTEM_FIELD_RENDERMODE:
 		{
-			static const int numValues = 8;
-			static const int values[numValues] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+			static const int numValues = 12;
+			static const int values[numValues] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 			r_renderMode.SetInteger( AdjustOption( r_renderMode.GetInteger(), values, numValues, adjustAmount ) );
 			break;
 		}
@@ -625,8 +628,8 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::AdjustFi
 		}
 		case SYSTEM_FIELD_CRT_POSTFX:
 		{
-			static const int numValues = 3;
-			static const int values[numValues] = { 0, 1, 2 };
+			static const int numValues = 4;
+			static const int values[numValues] = { 0, 1, 2, 3 };
 			r_useCRTPostFX.SetInteger( AdjustOption( r_useCRTPostFX.GetInteger(), values, numValues, adjustAmount ) );
 			break;
 		}
@@ -777,10 +780,11 @@ idSWFScriptVar idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings
 
 			compile_time_assert( numValues == ( ANTI_ALIASING_MSAA_4X + 1 ) );
 #else
-			static const int numValues = 2;
+			static const int numValues = 3;
 			static const char* values[numValues] =
 			{
 				"None",
+				"SMAA",
 				"TAA"
 			};
 
@@ -791,14 +795,18 @@ idSWFScriptVar idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings
 		}
 		case SYSTEM_FIELD_RENDERMODE:
 		{
-			static const int numValues = 8;
+			static const int numValues = 12;
 			static const char* values[numValues] =
 			{
 				"Doom 3",
+				"2-bit",
+				"2-bit Hi",
 				"Commodore 64",
 				"Commodore 64 Hi",
 				"Amstrad CPC 6128",
 				"Amstrad CPC 6128 Hi",
+				"NES",
+				"NES Hi",
 				"Sega Genesis",
 				"Sega Genesis Highres",
 				"Sony PSX",
@@ -820,12 +828,13 @@ idSWFScriptVar idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings
 
 		case SYSTEM_FIELD_CRT_POSTFX:
 		{
-			static const int numValues = 3;
+			static const int numValues = 4;
 			static const char* values[numValues] =
 			{
 				"#str_swf_disabled",
-				"Mattias CRT",
-				"Newpixie CRT",
+				"Mattias",
+				"Newpixie",
+				"Advanced",
 			};
 
 			return values[ r_useCRTPostFX.GetInteger() ];
@@ -890,6 +899,16 @@ bool idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsDataCh
 	//	return true;
 	//}
 
+	if( originalRenderMode != r_renderMode.GetInteger() )
+	{
+		return true;
+	}
+
+	if( originalAmbientBrightness != r_forceAmbient.GetFloat() )
+	{
+		return true;
+	}
+
 	if( originalSSAO != r_useSSAO.GetInteger() )
 	{
 		return true;
@@ -900,7 +919,7 @@ bool idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsDataCh
 		return true;
 	}
 
-	if( originalAmbientBrightness != r_forceAmbient.GetFloat() )
+	if( originalCRTPostFX != r_useCRTPostFX.GetInteger() )
 	{
 		return true;
 	}

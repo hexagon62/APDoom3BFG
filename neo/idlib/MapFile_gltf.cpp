@@ -153,14 +153,11 @@ MapPolygonMesh* MapPolygonMesh::ConvertFromMeshGltf( const gltfMesh_Primitive* p
 						bin.Seek( attrBv->byteStride - ( attrib->elementSize * attrAcc->typeSize ), FS_SEEK_CUR );
 					}
 
-					idVec3 normal;
+					// w = 0 because we only want to rotate the normal
+					idVec4 normal4D( vec.x, vec.y, vec.z, 0.0f );
+					normal4D *= transform;
 
-					normal.x = vec.x;
-					normal.y = vec.y;
-					normal.z = vec.z;
-
-					normal *= transform;
-
+					idVec3 normal = normal4D.ToVec3();
 					// renormalize because previous transforms may contain scale operations
 					normal.Normalize();
 
@@ -203,13 +200,10 @@ MapPolygonMesh* MapPolygonMesh::ConvertFromMeshGltf( const gltfMesh_Primitive* p
 						bin.Seek( attrBv->byteStride - ( attrib->elementSize * attrAcc->typeSize ), FS_SEEK_CUR );
 					}
 
-					idVec3 tangent;
+					idVec4 tangent4D( vec.x, vec.y, vec.z, 0.0f );
+					tangent4D *= transform;
 
-					tangent.x = vec.x;
-					tangent.y = vec.y;
-					tangent.z = vec.z;
-
-					tangent *= transform;
+					idVec3 tangent = tangent4D.ToVec3();
 					tangent.Normalize();
 
 					mesh->verts[i].SetTangent( tangent );
@@ -433,6 +427,8 @@ void ResolveLight( gltfData* data, idMapEntity* newEntity, gltfNode* node )
 
 	assert( light );
 
+	newEntity->epairs.Set( "classname", "light" );
+
 	//newEntity->epairs.SetMatrix( "rotation", mat3_default );
 	newEntity->epairs.SetVector( "_color", light->color );
 
@@ -450,8 +446,19 @@ void ResolveLight( gltfData* data, idMapEntity* newEntity, gltfNode* node )
 
 		case gltfExt_KHR_lights_punctual::Point:
 		{
-			newEntity->epairs.SetVector( "light_radius", idVec3( light->range ) );
-			newEntity->epairs.Set( "texture", "lights/defaultpointlight" );
+			float radius = 300;
+			if( light->range != -1 )
+			{
+				radius = light->range;
+			}
+
+			newEntity->epairs.SetVector( "light_radius", idVec3( radius ) );
+
+			idStr texture;
+			if( !newEntity->epairs.GetString( "texture", "", texture ) )
+			{
+				newEntity->epairs.Set( "texture", "lights/biground1" );
+			}
 			break;
 		}
 
@@ -471,7 +478,12 @@ void ResolveLight( gltfData* data, idMapEntity* newEntity, gltfNode* node )
 			newEntity->epairs.SetVector( "light_up", axis[2] * fov );
 			newEntity->epairs.SetVector( "light_start", axis[0] * 16 );
 			newEntity->epairs.SetVector( "light_end", axis[0] * ( light->range - 16 ) );
-			newEntity->epairs.Set( "texture", "lights/spot01" );
+
+			idStr texture;
+			if( !newEntity->epairs.GetString( "texture", "", texture ) )
+			{
+				newEntity->epairs.Set( "texture", "lights/spot01" );
+			}
 			break;
 		}
 
@@ -638,8 +650,9 @@ int idMapEntity::GetEntities( gltfData* data, EntityListRef entities, int sceneI
 				idStr classnameStr = node->extras.strPairs.GetString( "classname" );
 				bool skipInline = !node->extras.strPairs.GetBool( "inline", true );
 				idDict epairs;
-				// skip everything that is not an entity
-				if( !classnameStr.IsEmpty() )
+
+				// skip everything that is not an entity except lights
+				if( !classnameStr.IsEmpty() || node->extensions.KHR_lights_punctual )
 				{
 					idMapEntity* newEntity = new( TAG_IDLIB_GLTF ) idMapEntity();
 					entities.Append( newEntity );

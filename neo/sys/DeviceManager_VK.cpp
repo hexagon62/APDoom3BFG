@@ -1,7 +1,7 @@
 /*
 * Copyright (c) 2014-2021, NVIDIA CORPORATION. All rights reserved.
 * Copyright (C) 2022 Stephen Pridham (id Tech 4x integration)
-* Copyright (C) 2023 Stephen Saunders (id Tech 4x integration)
+* Copyright (C) 2023-2024 Stephen Saunders (id Tech 4x integration)
 * Copyright (C) 2023 Robert Beckebans (id Tech 4x integration)
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,9 +23,9 @@
 * DEALINGS IN THE SOFTWARE.
 */
 
-// SRS - Disable PCH here, otherwise get Vulkan header mismatch failures with USE_AMD_ALLOCATOR option
-//#include <precompiled.h>
-//#pragma hdrstop
+// SRS - Can now enable PCH here due to updated nvrhi CMakeLists.txt that makes Vulkan-Headers private
+#include <precompiled.h>
+#pragma hdrstop
 
 #include <string>
 #include <queue>
@@ -36,6 +36,9 @@
 #include <sys/DeviceManager.h>
 
 #include <nvrhi/vulkan.h>
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#include <vulkan/vulkan.hpp>
+
 // SRS - optionally needed for MoltenVK runtime config visibility
 #if defined(__APPLE__)
 	#if defined( USE_MoltenVK )
@@ -47,8 +50,8 @@
 		#endif
 	#endif
 	#if defined( VK_EXT_layer_settings ) || defined( USE_MoltenVK )
-		idCVar r_mvkSynchronousQueueSubmits( "r_mvkSynchronousQueueSubmits", "0", CVAR_BOOL | CVAR_INIT, "Use MoltenVK's synchronous queue submit option." );
-		idCVar r_mvkUseMetalArgumentBuffers( "r_mvkUseMetalArgumentBuffers", "2", CVAR_INTEGER | CVAR_INIT, "Use MoltenVK's Metal argument buffers option (0=Off, 1=Always On, 2=On when VK_EXT_descriptor_indexing enabled)", 0, 2 );
+		idCVar r_mvkSynchronousQueueSubmits( "r_mvkSynchronousQueueSubmits", "0", CVAR_BOOL | CVAR_INIT | CVAR_NEW, "Use MoltenVK's synchronous queue submit option." );
+		idCVar r_mvkUseMetalArgumentBuffers( "r_mvkUseMetalArgumentBuffers", "1", CVAR_INTEGER | CVAR_INIT | CVAR_NEW, "Use MoltenVK's Metal argument buffers option (0=Off, 1=On)", 0, 1 );
 	#endif
 #endif
 #include <nvrhi/validation.h>
@@ -62,13 +65,40 @@
 
 	VmaAllocator m_VmaAllocator = nullptr;
 
-	idCVar r_vmaDeviceLocalMemoryMB( "r_vmaDeviceLocalMemoryMB", "256", CVAR_INTEGER | CVAR_INIT, "Size of VMA allocation block for gpu memory." );
+	idCVar r_vmaDeviceLocalMemoryMB( "r_vmaDeviceLocalMemoryMB", "256", CVAR_INTEGER | CVAR_INIT | CVAR_NEW, "Size of VMA allocation block for gpu memory." );
 #endif
 
-idCVar r_preferFastSync( "r_preferFastSync", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "Prefer Fast Sync/no-tearing in place of VSync off/tearing (Vulkan only)" );
+idCVar r_vkPreferFastSync( "r_vkPreferFastSync", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NEW, "Prefer Fast Sync/no-tearing in place of VSync off/tearing" );
 
 // Define the Vulkan dynamic dispatcher - this needs to occur in exactly one cpp file in the program.
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+
+#if defined(__APPLE__) && defined( USE_MoltenVK )
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+static bool optickCapturing = false;
+
+// SRS - Optick callback function for notification of state changes
+static bool optickStateChangedCallback( Optick::State::Type state )
+{
+	switch( state )
+	{
+		case Optick::State::START_CAPTURE:
+			optickCapturing = true;
+			break;
+
+		case Optick::State::STOP_CAPTURE:
+		case Optick::State::CANCEL_CAPTURE:
+			optickCapturing = false;
+			break;
+
+		default:
+			break;
+	}
+
+	return true;
+}
+#endif
+#endif
 
 class DeviceManager_VK : public DeviceManager
 {
@@ -86,6 +116,11 @@ public:
 	[[nodiscard]] nvrhi::GraphicsAPI GetGraphicsAPI() const override
 	{
 		return nvrhi::GraphicsAPI::VULKAN;
+	}
+
+	int GetGraphicsFamilyIndex() const override
+	{
+		return m_GraphicsQueueFamily;
 	}
 
 protected:
@@ -223,7 +258,7 @@ private:
 #endif
 #endif
 			VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME,
-			VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+			VK_EXT_DEBUG_REPORT_EXTENSION_NAME
 		},
 		// layers
 		{ },
@@ -312,6 +347,20 @@ private:
 #if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
 	// SRS - function pointer for retrieving MoltenVK advanced performance statistics
 	PFN_vkGetPerformanceStatisticsMVK vkGetPerformanceStatisticsMVK = nullptr;
+#endif
+
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+	// SRS - Optick event storage for MoltenVK's Vulkan-to-Metal encoding thread
+	Optick::EventStorage* mvkAcquireEventStorage;
+	Optick::EventStorage* mvkSubmitEventStorage;
+	Optick::EventStorage* mvkEncodeEventStorage;
+	Optick::EventDescription* mvkAcquireEventDesc;
+	Optick::EventDescription* mvkSubmitEventDesc;
+	Optick::EventDescription* mvkEncodeEventDesc;
+	int64_t mvkLatestSubmitTime = 0;
+	int64_t mvkPreviousSubmitTime = 0;
+	int64_t mvkPreviousSubmitWaitTime = 0;
+	double mvkPreviousAcquireHash = 0.0;
 #endif
 #endif
 
@@ -574,7 +623,7 @@ bool DeviceManager_VK::createInstance()
 	const vk::Result res = vk::createInstance( &info, nullptr, &m_VulkanInstance );
 	if( res != vk::Result::eSuccess )
 	{
-		common->FatalError( "Failed to create a Vulkan instance, error code = %s", nvrhi::vulkan::resultToString( res ) );
+		common->FatalError( "Failed to create a Vulkan instance, error code = %s", nvrhi::vulkan::resultToString( ( VkResult )res ) );
 		return false;
 	}
 
@@ -599,7 +648,7 @@ void DeviceManager_VK::installDebugCallback()
 
 bool DeviceManager_VK::pickPhysicalDevice()
 {
-	vk::Format requestedFormat = nvrhi::vulkan::convertFormat( m_DeviceParams.swapChainFormat );
+	vk::Format requestedFormat = vk::Format( nvrhi::vulkan::convertFormat( m_DeviceParams.swapChainFormat ) );
 	vk::Extent2D requestedExtent( m_DeviceParams.backBufferWidth, m_DeviceParams.backBufferHeight );
 
 	auto devices = m_VulkanInstance.enumeratePhysicalDevices();
@@ -904,8 +953,6 @@ bool DeviceManager_VK::createDevice()
 
 	auto accelStructFeatures = vk::PhysicalDeviceAccelerationStructureFeaturesKHR()
 							   .setAccelerationStructure( true );
-	auto bufferAddressFeatures = vk::PhysicalDeviceBufferAddressFeaturesEXT()
-								 .setBufferDeviceAddress( true );
 	auto rayPipelineFeatures = vk::PhysicalDeviceRayTracingPipelineFeaturesKHR()
 							   .setRayTracingPipeline( true )
 							   .setRayTraversalPrimitiveCulling( true );
@@ -942,7 +989,6 @@ bool DeviceManager_VK::createDevice()
 #endif
 #define APPEND_EXTENSION(condition, desc) if (condition) { (desc).pNext = pNext; pNext = &(desc); }  // NOLINT(cppcoreguidelines-macro-usage)
 	APPEND_EXTENSION( accelStructSupported, accelStructFeatures )
-	APPEND_EXTENSION( bufferAddressSupported, bufferAddressFeatures )
 	APPEND_EXTENSION( rayPipelineSupported, rayPipelineFeatures )
 	APPEND_EXTENSION( rayQuerySupported, rayQueryFeatures )
 	APPEND_EXTENSION( meshletsSupported, meshletFeatures )
@@ -992,7 +1038,7 @@ bool DeviceManager_VK::createDevice()
 	const vk::Result res = m_VulkanPhysicalDevice.createDevice( &deviceDesc, nullptr, &m_VulkanDevice );
 	if( res != vk::Result::eSuccess )
 	{
-		common->FatalError( "Failed to create a Vulkan physical device, error code = %s", nvrhi::vulkan::resultToString( res ) );
+		common->FatalError( "Failed to create a Vulkan physical device, error code = %s", nvrhi::vulkan::resultToString( ( VkResult )res ) );
 		return false;
 	}
 
@@ -1064,19 +1110,19 @@ bool DeviceManager_VK::createWindowSurface()
 	// Create the platform-specific surface
 #if defined( VULKAN_USE_PLATFORM_SDL )
 	// SRS - Support generic SDL platform for linux and macOS
-	const vk::Result res = CreateSDLWindowSurface( m_VulkanInstance, &m_WindowSurface );
+	auto res = vk::Result( CreateSDLWindowSurface( ( VkInstance )m_VulkanInstance, ( VkSurfaceKHR* )&m_WindowSurface ) );
 
 #elif defined( VK_USE_PLATFORM_WIN32_KHR )
 	auto surfaceCreateInfo = vk::Win32SurfaceCreateInfoKHR()
 							 .setHinstance( ( HINSTANCE )windowInstance )
 							 .setHwnd( ( HWND )windowHandle );
 
-	const vk::Result res = m_VulkanInstance.createWin32SurfaceKHR( &surfaceCreateInfo, nullptr, &m_WindowSurface );
+	auto res = m_VulkanInstance.createWin32SurfaceKHR( &surfaceCreateInfo, nullptr, &m_WindowSurface );
 #endif
 
 	if( res != vk::Result::eSuccess )
 	{
-		common->FatalError( "Failed to create a Vulkan window surface, error code = %s", nvrhi::vulkan::resultToString( res ) );
+		common->FatalError( "Failed to create a Vulkan window surface, error code = %s", nvrhi::vulkan::resultToString( ( VkResult )res ) );
 		return false;
 	}
 
@@ -1134,7 +1180,7 @@ bool DeviceManager_VK::createSwapChain()
 	switch( m_DeviceParams.vsyncEnabled )
 	{
 		case 0:
-			presentMode = enablePModeMailbox && r_preferFastSync.GetBool() ? vk::PresentModeKHR::eMailbox :
+			presentMode = enablePModeMailbox && r_vkPreferFastSync.GetBool() ? vk::PresentModeKHR::eMailbox :
 						  ( enablePModeImmediate ? vk::PresentModeKHR::eImmediate : vk::PresentModeKHR::eFifo );
 			break;
 		case 1:
@@ -1165,7 +1211,7 @@ bool DeviceManager_VK::createSwapChain()
 	const vk::Result res = m_VulkanDevice.createSwapchainKHR( &desc, nullptr, &m_SwapChain );
 	if( res != vk::Result::eSuccess )
 	{
-		common->FatalError( "Failed to create a Vulkan swap chain, error code = %s", nvrhi::vulkan::resultToString( res ) );
+		common->FatalError( "Failed to create a Vulkan swap chain, error code = %s", nvrhi::vulkan::resultToString( ( VkResult )res ) );
 		return false;
 	}
 
@@ -1202,7 +1248,6 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
 
 	if( m_DeviceParams.enableDebugRuntime )
 	{
-		enabledExtensions.instance.insert( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
 #if defined(__APPLE__) && defined( USE_MoltenVK )
 	}
 
@@ -1210,6 +1255,19 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
 	static const vk::DynamicLoader dl( "libMoltenVK.dylib" );
 #else
 		enabledExtensions.layers.insert( "VK_LAYER_KHRONOS_validation" );
+
+		// SRS - Suppress specific [ WARNING-Shader-OutputNotConsumed ] validation warnings which are by design:
+		// 0xc81ad50e: vkCreateGraphicsPipelines(): pCreateInfos[0].pVertexInputState Vertex attribute at location X not consumed by vertex shader.
+		// 0x9805298c: vkCreateGraphicsPipelines(): pCreateInfos[0] fragment shader writes to output location X with no matching attachment.
+		// SRS - Suppress similar [ UNASSIGNED-CoreValidation-Shader-OutputNotConsumed ] warnings for older Vulkan SDKs:
+		// 0x609a13b: vertex shader writes to output location X.0 which is not consumed by fragment shader...
+		// 0x609a13b: Vertex attribute at location X not consumed by vertex shader.
+		// 0x609a13b: fragment shader writes to output location X with no matching attachment.
+#ifdef _WIN32
+		SetEnvironmentVariable( "VK_LAYER_MESSAGE_ID_FILTER", "0xc81ad50e;0x9805298c;0x609a13b" );
+#else
+		setenv( "VK_LAYER_MESSAGE_ID_FILTER", "0xc81ad50e:0x9805298c:0x609a13b", 1 );
+#endif
 	}
 
 	// SRS - make static so ~DynamicLoader() does not prematurely unload vulkan dynamic lib
@@ -1291,10 +1349,10 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
 		//	   - Also needed for Vulkan SDK 1.3.268.1 to work around SPIRV-Cross issue for Metal conversion.
 		//	   - See https://github.com/KhronosGroup/MoltenVK/issues/2016 and https://github.com/goki/vgpu/issues/9
 		//	   - Issue solved in Vulkan SDK >= 1.3.275.0, but config uses VK_EXT_layer_settings instead of this code.
-		if( mvkConfig.useMetalArgumentBuffers == MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS_NEVER && r_mvkUseMetalArgumentBuffers.GetInteger() )
+		if( mvkConfig.useMetalArgumentBuffers == 0 && r_mvkUseMetalArgumentBuffers.GetInteger() )
 		{
 			idLib::Printf( "Enabled MoltenVK's Metal argument buffers...\n" );
-			mvkConfig.useMetalArgumentBuffers = MVKUseMetalArgumentBuffers( r_mvkUseMetalArgumentBuffers.GetInteger() );
+			mvkConfig.useMetalArgumentBuffers = decltype( mvkConfig.useMetalArgumentBuffers )( r_mvkUseMetalArgumentBuffers.GetInteger() );
 		}
 
 #if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
@@ -1313,6 +1371,17 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
 #if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
 	// SRS - Get function pointer for retrieving MoltenVK advanced performance statistics in DeviceManager_VK::BeginFrame()
 	vkGetPerformanceStatisticsMVK = ( PFN_vkGetPerformanceStatisticsMVK )vkGetInstanceProcAddr( m_VulkanInstance, "vkGetPerformanceStatisticsMVK" );
+#endif
+
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+	// SRS - Initialize Optick event storage and descriptions for MoltenVK events
+	mvkAcquireEventStorage = Optick::RegisterStorage( "Mvk_ImageAcquire", uint64_t( -1 ), Optick::ThreadMask::Main );
+	mvkSubmitEventStorage = Optick::RegisterStorage( "Mvk_CmdBufSubmit", uint64_t( -1 ), Optick::ThreadMask::Main );
+	mvkEncodeEventStorage = Optick::RegisterStorage( "Mvk_EncodeThread", uint64_t( -1 ), Optick::ThreadMask::GPU );
+	mvkAcquireEventDesc = Optick::EventDescription::CreateShared( "Acquire_Wait" );
+	mvkSubmitEventDesc = Optick::EventDescription::CreateShared( "Submit_Wait" );
+	mvkEncodeEventDesc = Optick::EventDescription::CreateShared( "Metal_Encode" );
+	Optick::SetStateChangedCallback( ( Optick::StateCallback )optickStateChangedCallback );
 #endif
 #endif
 
@@ -1444,42 +1513,26 @@ void DeviceManager_VK::BeginFrame()
 {
 	OPTICK_CATEGORY( "Vulkan_BeginFrame", Optick::Category::Wait );
 
-#if defined(__APPLE__) && defined( USE_MoltenVK )
-#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
-	if( vkGetPerformanceStatisticsMVK && m_DeviceApiVersion >= VK_MAKE_API_VERSION( 0, 1, 2, 268 ) )
-	{
-		// SRS - get MoltenVK's Metal encoding time and GPU memory usage for display in statistics overlay HUD
-		MVKPerformanceStatistics mvkPerfStats;
-		size_t mvkPerfStatsSize = sizeof( mvkPerfStats );
-		vkGetPerformanceStatisticsMVK( m_VulkanDevice, &mvkPerfStats, &mvkPerfStatsSize );
-		commonLocal.SetRendererMvkEncodeMicroseconds( uint64( Max( 0.0, mvkPerfStats.queue.submitCommandBuffers.latest - mvkPerfStats.queue.retrieveCAMetalDrawable.latest ) * 1000.0 ) );
-		commonLocal.SetRendererGpuMemoryMB( int( mvkPerfStats.device.gpuMemoryAllocated.latest / 1024.0 ) );
-	}
-	else
-#endif
-#endif
-	{
-		// SRS - get Vulkan GPU memory usage for display in statistics overlay HUD
-		vk::PhysicalDeviceMemoryProperties2 memoryProperties2;
-		vk::PhysicalDeviceMemoryBudgetPropertiesEXT memoryBudget;
-		memoryProperties2.pNext = &memoryBudget;
-		m_VulkanPhysicalDevice.getMemoryProperties2( &memoryProperties2 );
+	// SRS - get Vulkan GPU memory usage for display in statistics overlay HUD
+	vk::PhysicalDeviceMemoryProperties2 memoryProperties2;
+	vk::PhysicalDeviceMemoryBudgetPropertiesEXT memoryBudget;
+	memoryProperties2.pNext = &memoryBudget;
+	m_VulkanPhysicalDevice.getMemoryProperties2( &memoryProperties2 );
 
-		VkDeviceSize gpuMemoryAllocated = 0;
-		for( uint32_t i = 0; i < memoryProperties2.memoryProperties.memoryHeapCount; i++ )
-		{
-			gpuMemoryAllocated += memoryBudget.heapUsage[i];
+	VkDeviceSize gpuMemoryAllocated = 0;
+	for( uint32_t i = 0; i < memoryProperties2.memoryProperties.memoryHeapCount; i++ )
+	{
+		gpuMemoryAllocated += memoryBudget.heapUsage[i];
 
 #if defined(__APPLE__)
-			// SRS - macOS Vulkan API <= 1.2.268 has heap reporting defect, use heapUsage[0] only
-			if( m_DeviceApiVersion <= VK_MAKE_API_VERSION( 0, 1, 2, 268 ) )
-			{
-				break;
-			}
-#endif
+		// SRS - macOS Vulkan API <= 1.2.268 has heap reporting defect, use heapUsage[0] only
+		if( m_DeviceApiVersion <= VK_MAKE_API_VERSION( 0, 1, 2, 268 ) )
+		{
+			break;
 		}
-		commonLocal.SetRendererGpuMemoryMB( int( gpuMemoryAllocated / 1024 / 1024 ) );
+#endif
 	}
+	commonLocal.SetRendererGpuMemoryMB( gpuMemoryAllocated / 1024 / 1024 );
 
 	const vk::Result res = m_VulkanDevice.acquireNextImageKHR( m_SwapChain,
 						   std::numeric_limits<uint64_t>::max(), // timeout
@@ -1494,18 +1547,29 @@ void DeviceManager_VK::BeginFrame()
 
 void DeviceManager_VK::EndFrame()
 {
+	OPTICK_CATEGORY( "Vulkan_EndFrame", Optick::Category::Wait );
+
 	m_NvrhiDevice->queueSignalSemaphore( nvrhi::CommandQueue::Graphics, m_PresentSemaphore, 0 );
 
 	// SRS - Don't need barrier commandlist if EndFrame() is called before executeCommandList() in idRenderBackend::GL_EndFrame()
 	//m_BarrierCommandList->open(); // umm...
 	//m_BarrierCommandList->close();
 	//m_NvrhiDevice->executeCommandList( m_BarrierCommandList );
+
+#if defined(__APPLE__) && defined( USE_MoltenVK )
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+	// SRS - Capture MoltenVK command buffer submit time just before executeCommandList() in idRenderBackend::GL_EndFrame()
+	mvkPreviousSubmitTime = mvkLatestSubmitTime;
+	mvkLatestSubmitTime = Optick::GetHighPrecisionTime();
+#endif
+#endif
 }
 
 void DeviceManager_VK::Present()
 {
 	OPTICK_GPU_FLIP( m_SwapChain );
 	OPTICK_CATEGORY( "Vulkan_Present", Optick::Category::Wait );
+	OPTICK_TAG( "Frame", idLib::frameNumber - 1 );
 
 	void* pNext = nullptr;
 #if USE_OPTICK
@@ -1567,6 +1631,60 @@ void DeviceManager_VK::Present()
 			m_NvrhiDevice->waitEventQuery( m_FrameWaitQuery );
 		}
 	}
+
+#if defined(__APPLE__) && defined( USE_MoltenVK )
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
+	if( vkGetPerformanceStatisticsMVK )
+	{
+		// SRS - get MoltenVK's Metal encoding time for display in statistics overlay HUD
+		MVKPerformanceStatistics mvkPerfStats;
+		size_t mvkPerfStatsSize = sizeof( mvkPerfStats );
+		if( vkGetPerformanceStatisticsMVK( m_VulkanDevice, &mvkPerfStats, &mvkPerfStatsSize ) == VK_SUCCESS )
+		{
+			uint64 mvkEncodeTime = Max( 0.0, mvkPerfStats.queue.commandBufferEncoding.latest - mvkPerfStats.queue.retrieveCAMetalDrawable.latest ) * 1000000.0;
+
+#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+			if( optickCapturing )
+			{
+				// SRS - create custom Optick event that displays MoltenVK's command buffer submit waiting time
+				OPTICK_STORAGE_EVENT( mvkSubmitEventStorage, mvkSubmitEventDesc, mvkPreviousSubmitTime, mvkPreviousSubmitTime + mvkPreviousSubmitWaitTime );
+				OPTICK_STORAGE_TAG( mvkSubmitEventStorage, mvkPreviousSubmitTime + mvkPreviousSubmitWaitTime / 2, "Frame", idLib::frameNumber - 2 );
+
+				// SRS - select latest acquire time if hashes match and we didn't retrieve a new image, otherwise select previous acquire time
+				double mvkLatestAcquireHash = mvkPerfStats.queue.retrieveCAMetalDrawable.latest + mvkPerfStats.queue.retrieveCAMetalDrawable.previous;
+				int64_t mvkAcquireWaitTime = mvkLatestAcquireHash == mvkPreviousAcquireHash ? mvkPerfStats.queue.retrieveCAMetalDrawable.latest * 1000000.0 : mvkPerfStats.queue.retrieveCAMetalDrawable.previous * 1000000.0;
+
+				// SRS - select latest presented frame if we are running synchronous, otherwise select previous presented frame as reference
+				int64_t mvkAcquireStartTime = mvkPreviousSubmitTime + mvkPreviousSubmitWaitTime;
+				int32_t frameNumberTag = idLib::frameNumber - 2;
+				if( r_mvkSynchronousQueueSubmits.GetBool() )
+				{
+					mvkAcquireStartTime = mvkLatestSubmitTime + int64_t( mvkPerfStats.queue.waitSubmitCommandBuffers.latest * 1000000.0 );
+					mvkAcquireWaitTime = mvkPerfStats.queue.retrieveCAMetalDrawable.latest * 1000000.0;
+					frameNumberTag = idLib::frameNumber - 1;
+				}
+
+				// SRS - create custom Optick event that displays MoltenVK's image acquire waiting time
+				OPTICK_STORAGE_EVENT( mvkAcquireEventStorage, mvkAcquireEventDesc, mvkAcquireStartTime, mvkAcquireStartTime + mvkAcquireWaitTime );
+				OPTICK_STORAGE_TAG( mvkAcquireEventStorage, mvkAcquireStartTime + mvkAcquireWaitTime / 2, "Frame", frameNumberTag );
+
+				// SRS - when Optick is active, use MoltenVK's previous encoding time to select game command buffer vs. Optick's command buffer
+				int64_t mvkEncodeStartTime = mvkAcquireStartTime + mvkAcquireWaitTime;
+				mvkEncodeTime = Max( int64_t( 0 ), int64_t( mvkPerfStats.queue.commandBufferEncoding.previous * 1000000.0 ) - mvkAcquireWaitTime );
+
+				// SRS - create custom Optick event that displays MoltenVK's Vulkan-to-Metal encoding time
+				OPTICK_STORAGE_EVENT( mvkEncodeEventStorage, mvkEncodeEventDesc, mvkEncodeStartTime, mvkEncodeStartTime + mvkEncodeTime );
+				OPTICK_STORAGE_TAG( mvkEncodeEventStorage, mvkEncodeStartTime + mvkEncodeTime / 2, "Frame", frameNumberTag );
+
+				mvkPreviousSubmitWaitTime = mvkPerfStats.queue.waitSubmitCommandBuffers.latest * 1000000.0;
+				mvkPreviousAcquireHash = mvkLatestAcquireHash;
+			}
+#endif
+			commonLocal.SetRendererMvkEncodeMicroseconds( mvkEncodeTime / 1000 );
+		}
+	}
+#endif
+#endif
 }
 
 DeviceManager* DeviceManager::CreateVK()

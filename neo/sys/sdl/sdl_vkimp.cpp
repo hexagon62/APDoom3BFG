@@ -70,15 +70,15 @@ std::vector<const char*> get_required_extensions()
 }
 
 // SRS - Helper method for creating SDL Vulkan surface within DeviceManager_VK() when NVRHI enabled
-vk::Result DeviceManager::CreateSDLWindowSurface( vk::Instance instance, vk::SurfaceKHR* surface )
+VkResult DeviceManager::CreateSDLWindowSurface( VkInstance instance, VkSurfaceKHR* surface )
 {
-	if( !SDL_Vulkan_CreateSurface( window, ( VkInstance )instance, ( VkSurfaceKHR* )surface ) )
+	if( !SDL_Vulkan_CreateSurface( window, instance, surface ) )
 	{
 		common->Warning( "Error while creating SDL Vulkan surface: %s", SDL_GetError() );
-		return vk::Result::eErrorSurfaceLostKHR;
+		return VkResult::VK_ERROR_SURFACE_LOST_KHR;
 	}
 
-	return vk::Result::eSuccess;
+	return VkResult::VK_SUCCESS;
 }
 
 bool DeviceManager::CreateWindowDeviceAndSwapChain( const glimpParms_t& parms, const char* windowTitle )
@@ -330,7 +330,6 @@ bool VKimp_Init( glimpParms_t parms )
 
 	// RB begin
 	glConfig.displayFrequency = GetDisplayFrequency( parms );
-	glConfig.isStereoPixelFormat = parms.stereo;
 	glConfig.multisamples = parms.multiSamples;
 
 	glConfig.pixelAspect = 1.0f;	// FIXME: some monitor modes may be distorted
@@ -523,7 +522,6 @@ bool VKimp_SetScreenParms( glimpParms_t parms )
 	}
 
 	glConfig.isFullscreen = parms.fullScreen;
-	glConfig.isStereoPixelFormat = parms.stereo;
 
 	// SRS - Get window's client area dimensions to set new render size
 	SDL_GetWindowSize( window, &glConfig.nativeScreenWidth, &glConfig.nativeScreenHeight );

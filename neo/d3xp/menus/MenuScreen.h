@@ -418,6 +418,7 @@ private:
 	bool						isMpPause;
 };
 
+#if defined(USE_DOOMCLASSIC)
 //*
 //================================================
 //idMenuScreen_Shell_PressStart
@@ -479,6 +480,7 @@ private:
 	const idMaterial* 			doom2Cover;
 	const idMaterial* 			doom3Cover;
 };
+#endif
 
 //*
 //================================================
@@ -1016,7 +1018,7 @@ public:
 			GAME_FIELD_AUTO_RELOAD,
 			GAME_FIELD_AIM_ASSIST,
 			GAME_FIELD_ALWAYS_SPRINT,
-			GAME_FIELD_FLASHLIGHT_SHADOWS,
+			GAME_FIELD_CLASSIC_FLASHLIGHT,
 			GAME_FIELD_MUZZLE_FLASHES,
 			MAX_GAME_FIELDS
 		};
@@ -1407,9 +1409,11 @@ public:
 		float originalVolume;
 		// RB begin
 		//int originalShadowMapping; // TODO use for quality of shadowmaps?
+		int originalRenderMode;
+		float originalAmbientBrightness;
 		int originalSSAO;
 		int originalPostProcessing;
-		float originalAmbientBrightness;
+		int originalCRTPostFX;
 		// RB end
 
 		idList<vidMode_t>			modeList;
@@ -1432,6 +1436,8 @@ private:
 	idMenuWidget_Button*			btnBack;
 
 };
+
+#if VR_OPTIONS
 
 //*
 //================================================
@@ -1500,6 +1506,8 @@ private:
 	const idMaterial* 			leftEyeMat;
 	const idMaterial* 			rightEyeMat;
 };
+
+#endif
 
 //*
 //================================================

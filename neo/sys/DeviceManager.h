@@ -129,7 +129,7 @@ public:
 
 #if USE_VK && defined( VULKAN_USE_PLATFORM_SDL )
 	// SRS - Helper method for creating SDL Vulkan surface within DeviceManager_VK()
-	vk::Result CreateSDLWindowSurface( vk::Instance instance, vk::SurfaceKHR* surface );
+	VkResult CreateSDLWindowSurface( VkInstance instance, VkSurfaceKHR* surface );
 #endif
 
 	bool CreateWindowDeviceAndSwapChain( const glimpParms_t& params, const char* windowTitle );
@@ -145,6 +145,12 @@ public:
 	}
 
 	void UpdateWindowSize( const glimpParms_t& params );
+
+	// RB: for OpenVR to submit native Vulkan images
+	virtual int GetGraphicsFamilyIndex() const
+	{
+		return -1;
+	}
 
 protected:
 	friend class idRenderBackend;
