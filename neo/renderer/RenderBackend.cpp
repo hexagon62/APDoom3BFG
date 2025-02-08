@@ -336,7 +336,14 @@ void idRenderBackend::BindVariableStageImage( const textureStage_t* texture, con
 	{
 		if( texture->image != NULL )
 		{
-			texture->image->Bind();
+			if( texture->image->IsLoaded() && !texture->image->IsDefaulted() )
+			{
+				texture->image->Bind();
+			}
+			else
+			{
+				globalImages->defaultImage->Bind();
+			}
 		}
 	}
 }
@@ -356,7 +363,6 @@ void idRenderBackend::PrepareStageTexturing( const shaderStage_t* pStage,  const
 	// texgens
 	if( pStage->texture.texgen == TG_REFLECT_CUBE )
 	{
-
 		// see if there is also a bump map specified
 		const shaderStage_t* bumpStage = surf->material->GetBumpStage();
 		if( bumpStage != NULL )
@@ -387,7 +393,130 @@ void idRenderBackend::PrepareStageTexturing( const shaderStage_t* pStage,  const
 				renderProgManager.BindShader_Environment();
 			}
 		}
+	}
+	else if( pStage->texture.texgen == TG_REFLECT_CUBE2 )
+	{
+		if( r_useSSR.GetBool() && R_UseHiZ() )
+		{
+			idVec4 probeMins, probeMaxs, probeCenter;
 
+			probeMins[0] = viewDef->globalProbeBounds[0][0];
+			probeMins[1] = viewDef->globalProbeBounds[0][1];
+			probeMins[2] = viewDef->globalProbeBounds[0][2];
+			probeMins[3] = viewDef->globalProbeBounds.IsCleared() ? 0.0f : 1.0f;
+
+			probeMaxs[0] = viewDef->globalProbeBounds[1][0];
+			probeMaxs[1] = viewDef->globalProbeBounds[1][1];
+			probeMaxs[2] = viewDef->globalProbeBounds[1][2];
+			probeMaxs[3] = 0.0f;
+
+			idVec3 center = viewDef->globalProbeBounds.GetCenter();
+			probeCenter.Set( center.x, center.y, center.z, 1.0f );
+
+			SetVertexParm( RENDERPARM_WOBBLESKY_X, probeMins.ToFloatPtr() );
+			SetVertexParm( RENDERPARM_WOBBLESKY_Y, probeMaxs.ToFloatPtr() );
+			SetVertexParm( RENDERPARM_WOBBLESKY_Z, probeCenter.ToFloatPtr() );
+
+			SetVertexParm( RENDERPARM_TEXGEN_0_S, viewDef->probePositions[0].ToFloatPtr() );
+			SetVertexParm( RENDERPARM_TEXGEN_0_T, viewDef->probePositions[1].ToFloatPtr() );
+			SetVertexParm( RENDERPARM_TEXGEN_0_Q, viewDef->probePositions[2].ToFloatPtr() );
+
+			// specular cubemap blend weights
+			renderProgManager.SetUniformValue( RENDERPARM_LOCALLIGHTORIGIN, viewDef->radianceImageBlends.ToFloatPtr() );
+
+			// general SSR parms
+			idVec4 ssrParms;
+			ssrParms.x = r_ssrStride.GetFloat();
+			ssrParms.y = r_ssrMaxDistance.GetFloat();
+			ssrParms.z = r_ssrZThickness.GetFloat();
+			ssrParms.w = r_ssrJitter.GetFloat();
+
+			idVec4 jitterTexScale;
+			jitterTexScale.x = r_ssrMaxDistance.GetFloat();
+			jitterTexScale.y = 0;
+			jitterTexScale.z = 0;
+			jitterTexScale.w = 0;
+			SetFragmentParm( RENDERPARM_JITTERTEXSCALE, jitterTexScale.ToFloatPtr() ); // rpJitterTexScale
+
+			renderProgManager.SetUniformValue( RENDERPARM_GLOBALLIGHTORIGIN, ssrParms.ToFloatPtr() );
+
+			// allow reconstruction of depth buffer value to full view space position
+			SetVertexParms( RENDERPARM_SHADOW_MATRIX_0_X, viewDef->unprojectionToCameraRenderMatrix[0], 4 );
+
+			// we need to rotate the normals from world space to view space
+			idRenderMatrix viewMatrix;
+			idRenderMatrix::Transpose( *( idRenderMatrix* ) viewDef->worldSpace.modelViewMatrix, viewMatrix );
+			//SetVertexParms( RENDERPARM_MODELVIEWMATRIX_X, viewMatrix[0], 4 );
+
+			// this is the main requirement for the DDA SSR algorithm next to the linear z buffer
+			// we need clip space [-1..1] -> window space [0..1] -> to texture space [0..w|h]
+			ALIGNTYPE16 const idRenderMatrix matClipToUvzw(
+				0.5f,  0.0f, 0.0f, 0.5f,
+				0.0f,  -0.5f, 0.0f, 0.5f,
+				0.0f,  0.0f, 1.0f, 0.0f,
+				0.0f,  0.0f, 0.0f, 1.0f
+			);
+
+			// should this be the viewport width / height instead?
+			int w = renderSystem->GetWidth();
+			int h = renderSystem->GetHeight();
+
+			ALIGNTYPE16 const idRenderMatrix screenScale(
+				w,  0.0f, 0.0f, 0.0f,
+				0.0f, h, 0.0f, 0.0f,
+				0.0f,  0.0f, 1.0f, 0.0f,
+				0.0f,  0.0f, 0.0f, 1.0f
+			);
+
+			idRenderMatrix screenSpaceScaled;
+			idRenderMatrix::Multiply( screenScale, matClipToUvzw, screenSpaceScaled );
+
+			idRenderMatrix screenSpace;
+			idRenderMatrix::Multiply( screenSpaceScaled, viewDef->projectionRenderMatrix, screenSpace );
+
+			SetVertexParms( RENDERPARM_SHADOW_MATRIX_1_X, screenSpace[0], 4 );
+
+
+			// see if there is also a bump map specified
+			const shaderStage_t* bumpStage = surf->material->GetBumpStage();
+			if( bumpStage != NULL )
+			{
+				// per-pixel reflection mapping with bump mapping
+				GL_SelectTexture( 0 );
+				bumpStage->texture.image->Bind();
+				//globalImages->flatNormalMap->Bind();
+
+				GL_SelectTexture( 1 );
+				globalImages->currentRenderImage->Bind();
+
+				GL_SelectTexture( 2 );
+				globalImages->gbufferNormalsRoughnessImage->Bind();
+
+				GL_SelectTexture( 3 );
+				// use hierachical Z to avoid read & write at the same time on the depth buffer
+				globalImages->hierarchicalZbufferImage->Bind();
+
+				GL_SelectTexture( 4 );
+				viewDef->radianceImages[0]->Bind();
+
+				GL_SelectTexture( 5 );
+				viewDef->radianceImages[1]->Bind();
+
+				GL_SelectTexture( 6 );
+				viewDef->radianceImages[2]->Bind();
+
+				GL_SelectTexture( 0 );
+
+				if( surf->jointCache )
+				{
+					renderProgManager.BindShader_BumpyEnvironment2Skinned();
+				}
+				else
+				{
+					renderProgManager.BindShader_BumpyEnvironment2();
+				}
+			}
+		}
 	}
 	else if( pStage->texture.texgen == TG_SKYBOX_CUBE )
 	{
@@ -395,7 +524,6 @@ void idRenderBackend::PrepareStageTexturing( const shaderStage_t* pStage,  const
 	}
 	else if( pStage->texture.texgen == TG_WOBBLESKY_CUBE )
 	{
-
 		const int* parms = surf->material->GetTexGenRegisters();
 
 		float wobbleDegrees = surf->shaderRegisters[ parms[0] ] * ( idMath::PI / 180.0f );
@@ -453,7 +581,6 @@ void idRenderBackend::PrepareStageTexturing( const shaderStage_t* pStage,  const
 	}
 	else if( ( pStage->texture.texgen == TG_SCREEN ) || ( pStage->texture.texgen == TG_SCREEN2 ) )
 	{
-
 		useTexGenParm[0] = 1.0f;
 		useTexGenParm[1] = 1.0f;
 		useTexGenParm[2] = 1.0f;
@@ -518,7 +645,7 @@ void idRenderBackend::FinishStageTexturing( const shaderStage_t* pStage, const d
 		GL_SelectTexture( 0 );
 	}
 
-	if( pStage->texture.texgen == TG_REFLECT_CUBE )
+	if( pStage->texture.texgen == TG_REFLECT_CUBE || pStage->texture.texgen == TG_REFLECT_CUBE2 )
 	{
 		// see if there is also a bump map specified
 		const shaderStage_t* bumpStage = surf->material->GetBumpStage();
@@ -531,6 +658,7 @@ void idRenderBackend::FinishStageTexturing( const shaderStage_t* pStage, const d
 		{
 			// per-pixel reflection mapping without bump mapping
 		}
+
 		renderProgManager.Unbind();
 	}
 }
@@ -994,7 +1122,14 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 			return;
 		}
 
-		if( r_skipDiffuse.GetInteger() == 2 )
+		if( r_skipDiffuse.GetInteger() == 3 )
+		{
+			// RB: for testing specular aliasing
+			din->diffuseImage = globalImages->redClayImage;
+			din->specularImage = globalImages->plasticSpecImage;
+			din->specularColor = colorWhite;
+		}
+		else if( r_skipDiffuse.GetInteger() == 2 )
 		{
 			din->diffuseImage = globalImages->whiteImage;
 		}
@@ -1042,7 +1177,7 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 	const textureUsage_t specUsage = din->specularImage->GetUsage();
 
 	// RB begin
-	if( useIBL && currentSpace->useLightGrid && r_useLightGrid.GetBool() )
+	if( useIBL && din->surf->area != NULL && r_useLightGrid.GetBool() )
 	{
 		idVec4 probeMins, probeMaxs, probeCenter;
 
@@ -1064,9 +1199,11 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 		SetVertexParm( RENDERPARM_WOBBLESKY_Z, probeCenter.ToFloatPtr() );
 
 		// use rpGlobalLightOrigin for lightGrid center
-		idVec4 lightGridOrigin( currentSpace->lightGridOrigin.x, currentSpace->lightGridOrigin.y, currentSpace->lightGridOrigin.z, 1.0f );
-		idVec4 lightGridSize( currentSpace->lightGridSize.x, currentSpace->lightGridSize.y, currentSpace->lightGridSize.z, 1.0f );
-		idVec4 lightGridBounds( currentSpace->lightGridBounds[0], currentSpace->lightGridBounds[1], currentSpace->lightGridBounds[2], 1.0f );
+		const LightGrid& lightGrid = din->surf->area->lightGrid;
+
+		idVec4 lightGridOrigin( lightGrid.lightGridOrigin.x, lightGrid.lightGridOrigin.y, lightGrid.lightGridOrigin.z, 1.0f );
+		idVec4 lightGridSize( lightGrid.lightGridSize.x, lightGrid.lightGridSize.y, lightGrid.lightGridSize.z, 1.0f );
+		idVec4 lightGridBounds( lightGrid.lightGridBounds[0], lightGrid.lightGridBounds[1], lightGrid.lightGridBounds[2], 1.0f );
 
 		renderProgManager.SetUniformValue( RENDERPARM_GLOBALLIGHTORIGIN, lightGridOrigin.ToFloatPtr() );
 		renderProgManager.SetUniformValue( RENDERPARM_JITTERTEXSCALE, lightGridSize.ToFloatPtr() );
@@ -1074,10 +1211,10 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 
 		// individual probe sizes on the atlas image
 		idVec4 probeSize;
-		probeSize[0] = currentSpace->lightGridAtlasSingleProbeSize - currentSpace->lightGridAtlasBorderSize;
-		probeSize[1] = currentSpace->lightGridAtlasSingleProbeSize;
-		probeSize[2] = currentSpace->lightGridAtlasBorderSize;
-		probeSize[3] = float( currentSpace->lightGridAtlasSingleProbeSize - currentSpace->lightGridAtlasBorderSize ) / currentSpace->lightGridAtlasSingleProbeSize;
+		probeSize[0] = lightGrid.imageSingleProbeSize - lightGrid.imageBorderSize;
+		probeSize[1] = lightGrid.imageSingleProbeSize;
+		probeSize[2] = lightGrid.imageBorderSize;
+		probeSize[3] = float( lightGrid.imageSingleProbeSize - lightGrid.imageBorderSize ) / lightGrid.imageSingleProbeSize;
 		renderProgManager.SetUniformValue( RENDERPARM_SCREENCORRECTIONFACTOR, probeSize.ToFloatPtr() ); // rpScreenCorrectionFactor
 
 		// specular cubemap blend weights
@@ -1121,9 +1258,9 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 		}
 
 		GL_SelectTexture( INTERACTION_TEXUNIT_AMBIENT_CUBE1 );
-		currentSpace->lightGridAtlasImage->Bind();
+		lightGrid.GetIrradianceImage()->Bind();
 
-		idVec2i res = currentSpace->lightGridAtlasImage->GetUploadResolution();
+		idVec2i res = lightGrid.GetIrradianceImage()->GetUploadResolution();
 		idVec4 textureSize( res.x, res.y, 1.0f / res.x, 1.0f / res.y );
 
 		renderProgManager.SetUniformValue( RENDERPARM_CASCADEDISTANCES, textureSize.ToFloatPtr() );
@@ -1575,7 +1712,7 @@ void idRenderBackend::RenderInteractions( const drawSurf_t* surfList, const view
 	// are added single-threaded, and there is only a negligable amount
 	// of benefit to trying to sort by materials.
 	//---------------------------------
-	static const int MAX_INTERACTIONS_PER_LIGHT = 1024;
+	static const int MAX_INTERACTIONS_PER_LIGHT = 2048; // 1024 in BFG
 	static const int MAX_COMPLEX_INTERACTIONS_PER_LIGHT = 256;
 	idStaticList< const drawSurf_t*, MAX_INTERACTIONS_PER_LIGHT > allSurfaces;
 	idStaticList< const drawSurf_t*, MAX_COMPLEX_INTERACTIONS_PER_LIGHT > complexSurfaces;
@@ -1704,9 +1841,11 @@ void idRenderBackend::RenderInteractions( const drawSurf_t* surfList, const view
 
 		// apply the world-global overbright and the 2x factor for specular
 		idVec4 diffuseColor = lightColor;
-// jmarshall
-		idVec4 specularColor = lightColor * 2.0f;
 
+		// RB: the BFG edition has exagerated specular lighting compared to vanilla Doom 3
+		// turn this back to 1.0
+		idVec4 specularColor = lightColor * 1.0f;
+// jmarshall
 		if( vLight->lightDef->parms.noSpecular )
 		{
 			specularColor.Zero();
@@ -2067,13 +2206,13 @@ void idRenderBackend::AmbientPass( const drawSurf_t* const* drawSurfs, int numDr
 
 	if( fillGbuffer )
 	{
-		commandList->clearTextureFloat( globalImages->gbufferNormalsRoughnessImage->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 0.f ) );
+		commandList->clearTextureFloat( globalImages->gbufferNormalsRoughnessImage->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 0.0f ) );
 	}
 
 	// RB: TODO remove this
 	if( !fillGbuffer && r_useSSAO.GetBool() && r_ssaoDebug.GetBool() )
 	{
-		GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS );
+		GL_State( GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS | GLS_CULL_TWOSIDED );
 
 		// We just want to do a quad pass - so make sure we disable any texgen and
 		// set the texture matrix to the identity so we don't get anomalies from
@@ -2875,12 +3014,9 @@ void idRenderBackend::SetupShadowMapMatrices( viewLight_t* vLight, int side, idR
 		lightProjectionMatrix[1 * 4 + 2] = 0.0f;
 		lightProjectionMatrix[2 * 4 + 2] = -0.999f; // adjust value to prevent imprecision issues
 
-#if 0 //defined( USE_NVRHI )
 		// the D3D clip space Z is in range [0,1] instead of [-1,1]
-		lightProjectionMatrix[3 * 4 + 2] = -zNear;
-#else
+		// FIXME -1.0f * zNear kills shadow depth
 		lightProjectionMatrix[3 * 4 + 2] = -2.0f * zNear;
-#endif
 
 		lightProjectionMatrix[0 * 4 + 3] = 0.0f;
 		lightProjectionMatrix[1 * 4 + 3] = 0.0f;
@@ -2959,21 +3095,28 @@ void idRenderBackend::ShadowMapPassPerforated( const drawSurf_t** drawSurfs, int
 	// like a no-change-required
 	GL_State( glState | GLS_POLYGON_OFFSET );
 
+	const float polygonFactor = r_shadowMapPolygonFactor.GetFloat();
+	float polygonOffset = r_dxShadowMapPolygonOffset.GetFloat();
+	if( deviceManager->GetGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN )
+	{
+		polygonOffset = r_vkShadowMapPolygonOffset.GetFloat();
+	}
+
 	switch( r_shadowMapOccluderFacing.GetInteger() )
 	{
 		case 0:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_FRONTSIDED );
-			GL_PolygonOffset( r_shadowMapPolygonFactor.GetFloat(), r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( polygonFactor, polygonOffset );
 			break;
 
 		case 1:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_BACKSIDED );
-			GL_PolygonOffset( -r_shadowMapPolygonFactor.GetFloat(), -r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( -polygonFactor, -polygonOffset );
 			break;
 
 		default:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_TWOSIDED );
-			GL_PolygonOffset( r_shadowMapPolygonFactor.GetFloat(), r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( polygonFactor, polygonOffset );
 			break;
 	}
 
@@ -3181,21 +3324,28 @@ void idRenderBackend::ShadowMapPassFast( const drawSurf_t* drawSurfs, viewLight_
 	// like a no-change-required
 	GL_State( glState | GLS_POLYGON_OFFSET );
 
+	const float polygonFactor = r_shadowMapPolygonFactor.GetFloat();
+	float polygonOffset = r_dxShadowMapPolygonOffset.GetFloat();
+	if( deviceManager->GetGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN )
+	{
+		polygonOffset = r_vkShadowMapPolygonOffset.GetFloat();
+	}
+
 	switch( r_shadowMapOccluderFacing.GetInteger() )
 	{
 		case 0:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_FRONTSIDED );
-			GL_PolygonOffset( r_shadowMapPolygonFactor.GetFloat(), r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( polygonFactor, polygonOffset );
 			break;
 
 		case 1:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_BACKSIDED );
-			GL_PolygonOffset( -r_shadowMapPolygonFactor.GetFloat(), -r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( -polygonFactor, -polygonOffset );
 			break;
 
 		default:
 			GL_State( ( glStateBits & ~( GLS_CULL_MASK ) ) | GLS_CULL_TWOSIDED );
-			GL_PolygonOffset( r_shadowMapPolygonFactor.GetFloat(), r_shadowMapPolygonOffset.GetFloat() );
+			GL_PolygonOffset( polygonFactor, polygonOffset );
 			break;
 	}
 
@@ -5035,31 +5185,7 @@ void idRenderBackend::DrawScreenSpaceAmbientOcclusion( const viewDef_t* _viewDef
 	int screenWidth = renderSystem->GetWidth();
 	int screenHeight = renderSystem->GetHeight();
 
-	commandList->clearTextureFloat( globalImages->hierarchicalZbufferImage->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 1.f ) );
-	commandList->clearTextureFloat( globalImages->ambientOcclusionImage[0]->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 1.f ) );
-
-	// build hierarchical depth buffer
-	if( r_useHierarchicalDepthBuffer.GetBool() )
-	{
-		renderLog.OpenBlock( "Render_HiZ" );
-
-		//if( R_GetMSAASamples() > 1 )
-		//{
-		//	commandList->resolveTexture( globalImages->hierarchicalZbufferImage->GetTextureHandle(), nvrhi::AllSubresources, globalImages->currentDepthImage->GetTextureHandle(), nvrhi::AllSubresources );
-		//}
-		//else
-		{
-			commonPasses.BlitTexture(
-				commandList,
-				globalFramebuffers.csDepthFBO[0]->GetApiObject(),
-				globalImages->currentDepthImage->GetTextureHandle(),
-				&bindingCache );
-		}
-
-		hiZGenPass->Dispatch( commandList, MAX_HIERARCHICAL_ZBUFFERS );
-
-		renderLog.CloseBlock();
-	}
+	commandList->clearTextureFloat( globalImages->ambientOcclusionImage[0]->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 1.0f ) );
 
 	if( previousFramebuffer != NULL )
 	{
@@ -5151,7 +5277,7 @@ void idRenderBackend::DrawScreenSpaceAmbientOcclusion( const viewDef_t* _viewDef
 	globalImages->gbufferNormalsRoughnessImage->Bind();
 
 	GL_SelectTexture( 1 );
-	if( r_useHierarchicalDepthBuffer.GetBool() )
+	if( R_UseHiZ() )
 	{
 		globalImages->hierarchicalZbufferImage->Bind();
 	}
@@ -5433,8 +5559,10 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	OPTICK_GPU_CONTEXT( ( void* ) commandList->getNativeObject( commandObject ) );
 	//OPTICK_GPU_EVENT( "DrawView" );	// SRS - now in DrawView() for 3D vs. GUI
 
+	bool is3D = _viewDef->viewEntitys && !_viewDef->is2Dgui;
+
 	// ugly but still faster than building the string
-	if( !_viewDef->viewEntitys || _viewDef->is2Dgui )
+	if( !is3D )
 	{
 		if( stereoEye == -1 )
 		{
@@ -5503,7 +5631,6 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	// ensures that depth writes are enabled for the depth clear
 	GL_State( GLS_DEFAULT | GLS_CULL_FRONTSIDED, true );
 
-	bool useHDR = !_viewDef->is2Dgui;
 	bool clearColor = false;
 
 	if( _viewDef->renderView.rdflags & RDF_IRRADIANCE )
@@ -5511,7 +5638,7 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 		globalFramebuffers.envprobeFBO->Bind();
 		clearColor = true;
 	}
-	else if( useHDR )
+	else if( is3D )
 	{
 		globalFramebuffers.hdrFBO->Bind();
 	}
@@ -5561,9 +5688,7 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 		SetFragmentParm( RENDERPARM_OVERBRIGHT, parm );
 
 		// Set Projection Matrix
-		float projMatrixTranspose[16];
-		R_MatrixTranspose( viewDef->projectionMatrix, projMatrixTranspose );
-		SetVertexParms( RENDERPARM_PROJMATRIX_X, projMatrixTranspose, 4 );
+		SetVertexParms( RENDERPARM_PROJMATRIX_X, viewDef->projectionRenderMatrix[0], 4 );
 
 		// PSX jitter parms
 		if( ( r_renderMode.GetInteger() == RENDERMODE_PSX ) && ( _viewDef->viewEntitys && !_viewDef->is2Dgui ) )
@@ -5588,6 +5713,19 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 		}
 
 		SetVertexParm( RENDERPARM_PSX_DISTORTIONS, parm );
+
+		// make sure rpWindowCoord is set even without post processing surfaces in the view
+		int x = viewDef->viewport.x1;
+		int y = viewDef->viewport.y1;
+		int	w = viewDef->viewport.x2 - viewDef->viewport.x1 + 1;
+		int	h = viewDef->viewport.y2 - viewDef->viewport.y1 + 1;
+
+		float windowCoordParm[4];
+		windowCoordParm[0] = 1.0f / w;
+		windowCoordParm[1] = 1.0f / h;
+		windowCoordParm[2] = w;
+		windowCoordParm[3] = h;
+		SetFragmentParm( RENDERPARM_WINDOWCOORD, windowCoordParm ); // rpWindowCoord
 	}
 
 	//-------------------------------------------------
@@ -5596,11 +5734,32 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	FillDepthBufferFast( drawSurfs, numDrawSurfs );
 
 	//-------------------------------------------------
+	// build hierarchical depth buffer
+	//-------------------------------------------------
+	if( R_UseHiZ() && is3D )
+	{
+		OPTICK_GPU_EVENT( "Render_HiZ" );
+		renderLog.OpenBlock( "Render_HiZ" );
+
+		commandList->clearTextureFloat( globalImages->hierarchicalZbufferImage->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 1.f ) );
+
+		commonPasses.BlitTexture(
+			commandList,
+			globalFramebuffers.csDepthFBO[0]->GetApiObject(),
+			globalImages->currentDepthImage->GetTextureHandle(),
+			&bindingCache );
+
+		hiZGenPass->Dispatch( commandList, MAX_HIERARCHICAL_ZBUFFERS );
+
+		renderLog.CloseBlock();
+	}
+
+	//-------------------------------------------------
 	// FIXME, OPTIMIZE: merge this with FillDepthBufferFast like in a light prepass deferred renderer
 	//
 	// fill the geometric buffer with normals and roughness
 	//-------------------------------------------------
-	if( viewDef->viewEntitys )		// 3D views only
+	if( is3D )
 	{
 		//OPTICK_EVENT( "Render_GeometryBuffer" );
 		OPTICK_GPU_EVENT( "Render_GeometryBuffer" );
@@ -5623,7 +5782,7 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	//-------------------------------------------------
 	// render static lighting and consider SSAO results
 	//-------------------------------------------------
-	if( viewDef->viewEntitys )		// 3D views only
+	if( is3D )
 	{
 		//OPTICK_EVENT( "Render_AmbientPass" );
 		OPTICK_GPU_EVENT( "Render_AmbientPass" );
@@ -5642,8 +5801,37 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	DrawInteractions( _viewDef );
 
 	//-------------------------------------------------
+	// resolve the screen for SSR
+	//-------------------------------------------------
+	if( is3D && r_useSSR.GetBool() && R_UseHiZ() )
+	{
+		OPTICK_GPU_EVENT( "Resolve_Screen4SSR" );
+
+		if( R_GetMSAASamples() > 1 )
+		{
+			renderLog.OpenBlock( "Resolve to _currentRender" );
+
+			commandList->resolveTexture( globalImages->currentRenderImage->GetTextureHandle(), nvrhi::AllSubresources, globalImages->currentRenderHDRImage->GetTextureHandle(), nvrhi::AllSubresources );
+		}
+		else
+		{
+			renderLog.OpenBlock( "Blit to _currentRender" );
+
+			BlitParameters blitParms;
+			nvrhi::IFramebuffer* currentFB = ( nvrhi::IFramebuffer* )currentFrameBuffer->GetApiObject();
+			blitParms.sourceTexture = currentFB->getDesc().colorAttachments[0].texture;
+			blitParms.targetFramebuffer = globalFramebuffers.postProcFBO->GetApiObject(); // _currentRender image
+			blitParms.targetViewport = nvrhi::Viewport( renderSystem->GetWidth(), renderSystem->GetHeight() );
+			commonPasses.BlitTexture( commandList, blitParms, &bindingCache );
+		}
+
+		renderLog.CloseBlock();
+	}
+
+	//-------------------------------------------------
 	// now draw any non-light dependent shading passes
 	//-------------------------------------------------
+
 	int processed = 0;
 	if( !r_skipShaderPasses.GetBool() )
 	{
@@ -5759,7 +5947,7 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	// tonemapping: convert back from HDR to LDR range
 	//-------------------------------------------------
 
-	if( useHDR && !( _viewDef->renderView.rdflags & RDF_IRRADIANCE ) && !_viewDef->targetRender )
+	if( is3D && !( _viewDef->renderView.rdflags & RDF_IRRADIANCE ) && !_viewDef->targetRender )
 	{
 		OPTICK_GPU_EVENT( "Render_ToneMapPass" );
 
@@ -6373,23 +6561,8 @@ void idRenderBackend::PostProcess( const void* data )
 		globalImages->gbufferNormalsRoughnessImage->Bind();
 
 		GL_SelectTexture( 3 );
-		if( r_useHierarchicalDepthBuffer.GetBool() )
+		if( R_UseHiZ() )
 		{
-			// build hierarchical depth buffer
-			renderLog.OpenBlock( "Render_HiZ" );
-
-			commandList->clearTextureFloat( globalImages->hierarchicalZbufferImage->GetTextureHandle(), nvrhi::AllSubresources, nvrhi::Color( 1.f ) );
-
-			commonPasses.BlitTexture(
-				commandList,
-				globalFramebuffers.csDepthFBO[0]->GetApiObject(),
-				globalImages->currentDepthImage->GetTextureHandle(),
-				&bindingCache );
-
-			hiZGenPass->Dispatch( commandList, MAX_HIERARCHICAL_ZBUFFERS );
-
-			renderLog.CloseBlock();
-
 			globalImages->hierarchicalZbufferImage->Bind();
 		}
 		else
@@ -6418,12 +6591,6 @@ void idRenderBackend::PostProcess( const void* data )
 			jitterTexScale[0] = r_renderMode.GetInteger() == RENDERMODE_CPC_HIGHRES ? 2.0 : 1.0;
 
 			renderProgManager.BindShader_PostProcess_RetroCPC();
-		}
-		else if( r_renderMode.GetInteger() == RENDERMODE_NES || r_renderMode.GetInteger() == RENDERMODE_NES_HIGHRES )
-		{
-			jitterTexScale[0] = r_renderMode.GetInteger() == RENDERMODE_NES_HIGHRES ? 2.0 : 1.0;
-
-			renderProgManager.BindShader_PostProcess_RetroNES();
 		}
 		else if( r_renderMode.GetInteger() == RENDERMODE_GENESIS || r_renderMode.GetInteger() == RENDERMODE_GENESIS_HIGHRES )
 		{
