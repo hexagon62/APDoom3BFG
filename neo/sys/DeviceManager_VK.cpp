@@ -602,6 +602,14 @@ bool DeviceManager_VK::createInstance()
 		layerSetting.pValues = &timestampPeriodLowPassAlpha;
 		layerSettings.push_back( layerSetting );
 
+#if defined( USE_AMD_ALLOCATOR )
+		// SRS - Disable MoltenVK's MTLHeap feature if AMD's VMA is enabled for GPU memory allocations
+		layerSetting.pSettingName = "MVK_CONFIG_USE_MTLHEAP";
+		layerSetting.type = vk::LayerSettingTypeEXT::eBool32;
+		layerSetting.pValues = &valueFalse;
+		layerSettings.push_back( layerSetting );
+#endif
+
 		// SRS - Only enable MoltenVK performance tracking if using API and available based on version
 #if defined( USE_MoltenVK )
 #if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
