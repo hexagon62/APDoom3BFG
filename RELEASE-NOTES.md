@@ -80,6 +80,8 @@ Light entities with models are automatically grouped into new light groups and t
 
 This groundbreaking update to TrenchBroomBFG, delivering lightning-fast load times for maps featuring custom, high-poly models. Say goodbye to waiting minutes—now, maps load in mere seconds, empowering creators to seamlessly work with modern assets like Epic's Sun Temple demo or Crytek's Sponza level.
 
+<img src="https://i.imgur.com/8sXgtuF.jpeg" width="800">
+
 Additionally, RBDoom-3-BFG now features a cutting-edge binary model format, ensuring stability and eliminating crashes when reloading custom maps. This new format automatically regenerates models, converting formats such as `.glb` to `.bglb` and `.obj` to `.bobj`, streamlining your workflow and enhancing your creative experience.
 
 Upgrade your mapping experience with TrenchBroomBFG!
