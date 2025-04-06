@@ -572,6 +572,7 @@ bool DeviceManager_VK::createInstance()
 	const vk::Bool32 valueTrue = vk::True, valueFalse = vk::False;
 	const int32_t useMetalArgumentBuffers = r_mvkUseMetalArgumentBuffers.GetInteger();
 	const float timestampPeriodLowPassAlpha = 1.0;
+	const int32_t logLevelErrorsOnly = 1; // MVK_CONFIG_LOG_LEVEL_ERROR
 
 	if( enabledExtensions.instance.find( VK_EXT_LAYER_SETTINGS_EXTENSION_NAME ) != enabledExtensions.instance.end() )
 	{
@@ -610,13 +611,19 @@ bool DeviceManager_VK::createInstance()
 		layerSettings.push_back( layerSetting );
 #endif
 
-		// SRS - Only enable MoltenVK performance tracking if using API and available based on version
 #if defined( USE_MoltenVK )
 #if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 6 )
 		// SRS - Enable MoltenVK's performance tracking for display of Metal encoding timer on macOS
 		layerSetting.pSettingName = "MVK_CONFIG_PERFORMANCE_TRACKING";
 		layerSetting.type = vk::LayerSettingTypeEXT::eBool32;
 		layerSetting.pValues = &valueTrue;
+		layerSettings.push_back( layerSetting );
+#endif
+#if !defined( _DEBUG )
+		// SRS - Set MoltenVK's log level to "errors only" for release builds to avoid verbose messages
+		layerSetting.pSettingName = "MVK_CONFIG_LOG_LEVEL";
+		layerSetting.type = vk::LayerSettingTypeEXT::eInt32;
+		layerSetting.pValues = &logLevelErrorsOnly;
 		layerSettings.push_back( layerSetting );
 #endif
 #endif
