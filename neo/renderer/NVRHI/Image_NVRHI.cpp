@@ -393,6 +393,10 @@ void idImage::AllocImage()
 			format = nvrhi::Format::BC3_UNORM;
 			break;
 
+		case FMT_BC6H:
+			format = nvrhi::Format::BC6H_SFLOAT;
+			break;
+
 		case FMT_DEPTH:
 			format = nvrhi::Format::D32;
 			break;

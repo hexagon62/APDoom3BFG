@@ -82,6 +82,8 @@ int BitsForFormat( textureFormat_t format )
 			return 32;
 		case FMT_R11G11B10F:
 			return 32;
+		case FMT_BC6H:
+			return 8;
 		// RB end
 		case FMT_DEPTH:
 			return 32;
@@ -191,7 +193,7 @@ ID_INLINE void idImage::DeriveOpts()
 				break;
 
 			case TD_R11G11B10F:
-				opts.format = FMT_R11G11B10F;
+				opts.format = FMT_BC6H;
 				break;
 
 			case TD_DIFFUSE:
@@ -272,7 +274,7 @@ ID_INLINE void idImage::DeriveOpts()
 			// motorsep end
 
 			case TD_HDRI:
-				opts.format = FMT_R11G11B10F;
+				opts.format = FMT_BC6H;
 				//opts.numLevels = 1;
 				break;
 

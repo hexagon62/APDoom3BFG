@@ -5693,3 +5693,224 @@ void idDxtEncoder::ConvertImageDXN1_DXT1( const byte* inBuf, byte* outBuf, int w
 		inBuf += srcPadding;
 	}
 }
+
+
+// RB begin
+#include <cmath>
+#include <algorithm>
+
+#include "../../libs/mesa/format_r11g11b10f.h"
+
+static const float HALF_MAX = 65504.0f;
+
+// helper function: Mean Squared Logarithmic Error (MSLE)
+static float CalcMSLE( const float* a, const float* b )
+{
+	float delta[3];
+	for( int i = 0; i < 3; ++i )
+	{
+		delta[i] = log2f( ( b[i] + 1.0f ) / ( a[i] + 1.0f ) );
+	}
+	float deltaSq[3] = { delta[0]* delta[0], delta[1]* delta[1], delta[2]* delta[2] };
+	return deltaSq[0] + deltaSq[1] + deltaSq[2]; // Ohne Luminanzgewichte für Einfachheit
+}
+
+// Quantize to 10 Bit
+static void Quantize10( float* out, const float* in )
+{
+	const float scale = 1023.0f; // 10 Bit
+	for( int i = 0; i < 3; ++i )
+	{
+		out[i] = std::floor( in[i] * scale / HALF_MAX ); // Skaliere auf 0-1023
+		out[i] = std::max( 0.0f, std::min( out[i], scale ) );
+	}
+}
+
+// Dequantize from 10 Bit
+static void Unquantize10( float* out, const float* in )
+{
+	const float scale = 1023.0f;
+	for( int i = 0; i < 3; ++i )
+	{
+		out[i] = in[i] * HALF_MAX / scale;
+	}
+}
+
+// Calc Index berechnen (4 Bit, 0-15)
+static uint32_t ComputeIndex4( float texelPos, float endPoint0Pos, float endPoint1Pos )
+{
+	float r = ( texelPos - endPoint0Pos ) / ( endPoint1Pos - endPoint0Pos );
+	return ( uint32_t )std::clamp( r * 14.93333f + 0.03333f + 0.5f, 0.0f, 15.0f );
+}
+
+/*
+========================
+idDxtEncoder::EncodeBC6HMode11
+Mode 11: 10-bit End pints, 4-bit Indizes, no partitioning
+========================
+*/
+void idDxtEncoder::EncodeBC6HMode11( const float* block, byte* outBlock, float& msle )
+{
+	// find min/max endpoints
+	float blockMin[3] = { block[0], block[1], block[2] };
+	float blockMax[3] = { block[0], block[1], block[2] };
+	for( int i = 1; i < 16; ++i )
+	{
+		for( int c = 0; c < 3; ++c )
+		{
+			blockMin[c] = std::min( blockMin[c], block[i * 3 + c] );
+			blockMax[c] = std::max( blockMax[c], block[i * 3 + c] );
+		}
+	}
+
+	// calc direction
+	float blockDir[3];
+	float dirLen = 0.0f;
+	for( int c = 0; c < 3; ++c )
+	{
+		blockDir[c] = blockMax[c] - blockMin[c];
+		dirLen += blockDir[c];
+	}
+	for( int c = 0; c < 3; ++c )
+	{
+		blockDir[c] /= dirLen ? dirLen : 1.0f;
+	}
+
+	// end points
+	float endPoint0Pos = 0.0f, endPoint1Pos = 0.0f;
+	for( int c = 0; c < 3; ++c )
+	{
+		endPoint0Pos += blockMin[c] * blockDir[c];
+		endPoint1Pos += blockMax[c] * blockDir[c];
+	}
+
+	// test if end points need to be swapped (Fixup-Index)
+	float fixupTexelPos = 0.0f;
+	for( int c = 0; c < 3; ++c )
+	{
+		fixupTexelPos += block[c] * blockDir[c];
+	}
+	uint32_t fixupIndex = ComputeIndex4( fixupTexelPos, endPoint0Pos, endPoint1Pos );
+	if( fixupIndex > 7 )
+	{
+		std::swap( endPoint0Pos, endPoint1Pos );
+		std::swap( blockMin[0], blockMax[0] );
+		std::swap( blockMin[1], blockMax[1] );
+		std::swap( blockMin[2], blockMax[2] );
+	}
+
+	// quantize end points
+	float endpoint0[3], endpoint1[3];
+	Quantize10( endpoint0, blockMin );
+	Quantize10( endpoint1, blockMax );
+
+	// calc indizes
+	uint32_t indices[16];
+	for( int i = 0; i < 16; ++i )
+	{
+		float texelPos = 0.0f;
+		for( int c = 0; c < 3; ++c )
+		{
+			texelPos += block[i * 3 + c] * blockDir[c];
+		}
+		indices[i] = ComputeIndex4( texelPos, endPoint0Pos, endPoint1Pos );
+	}
+
+	// calc error metric (MSLE)
+	float endpoint0Unq[3], endpoint1Unq[3];
+	Unquantize10( endpoint0Unq, endpoint0 );
+	Unquantize10( endpoint1Unq, endpoint1 );
+	msle = 0.0f;
+	for( int i = 0; i < 16; ++i )
+	{
+		float weight = ( float )indices[i] * 64.0f / 15.0f;
+		float texelUnc[3];
+		for( int c = 0; c < 3; ++c )
+		{
+			texelUnc[c] = ( endpoint0Unq[c] * ( 64.0f - weight ) + endpoint1Unq[c] * weight + 32.0f ) * ( 31.0f / 4096.0f );
+		}
+		msle += CalcMSLE( block + i * 3, texelUnc );
+	}
+
+	// Bitpacking for Mode 11 (128 Bit)
+	uint32_t blockWords[4] = {0};
+	blockWords[0] = 0x03; // Mode 11: 00011
+	blockWords[0] |= ( ( uint32_t )endpoint0[0] << 5 );
+	blockWords[0] |= ( ( uint32_t )endpoint0[1] << 15 );
+	blockWords[0] |= ( ( uint32_t )endpoint0[2] << 25 );
+	blockWords[1] |= ( ( uint32_t )endpoint0[2] >> 7 );
+	blockWords[1] |= ( ( uint32_t )endpoint1[0] << 3 );
+	blockWords[1] |= ( ( uint32_t )endpoint1[1] << 13 );
+	blockWords[1] |= ( ( uint32_t )endpoint1[2] << 23 );
+	blockWords[2] |= ( ( uint32_t )endpoint1[2] >> 9 );
+	blockWords[2] |= ( indices[0] << 1 ) | ( indices[1] << 4 ) | ( indices[2] << 8 ) | ( indices[3] << 12 ) |
+					 ( indices[4] << 16 ) | ( indices[5] << 20 ) | ( indices[6] << 24 ) | ( indices[7] << 28 );
+	blockWords[3] = ( indices[8] << 0 ) | ( indices[9] << 4 ) | ( indices[10] << 8 ) | ( indices[11] << 12 ) |
+					( indices[12] << 16 ) | ( indices[13] << 20 ) | ( indices[14] << 24 ) | ( indices[15] << 28 );
+
+	// move to output
+	memcpy( outBlock, blockWords, 16 );
+}
+
+/*
+========================
+idDxtEncoder::ConvertR11G11B10_BC6
+Fallback without SIMD, uses mode 11
+========================
+*/
+void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, byte* outBuf, int width, int height )
+{
+	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
+	{
+		idLib::Warning( "Invalid dimensions for BC6H-compression: %dx%d", width, height );
+		return;
+	}
+
+	this->width = width;
+	this->height = height;
+	this->outData = outBuf;
+
+	float* block = new float[16 * 3]; // tmp 4x4 block
+
+	for( int j = 0; j < height; j += 4 )
+	{
+		for( int i = 0; i < width; i += 4 )
+		{
+			// extract and convert 4x4 block
+			for( int y = 0; y < 4; ++y )
+			{
+				for( int x = 0; x < 4; ++x )
+				{
+					const byte* pixel = inBuf + ( ( j + y ) * width + ( i + x ) ) * 4;
+					uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
+
+					float rgb[3];
+					r11g11b10f_to_float3( packed, rgb );
+					//float r = ( float )( ( packed >> 21 ) & 0x7FF ) / 2047.0f;
+					//float g = ( float )( ( packed >> 10 ) & 0x7FF ) / 2047.0f;
+					//float b = ( float )( packed & 0x3FF ) / 1023.0f;
+					int idx = ( y * 4 + x ) * 3;
+					block[idx + 0] = rgb[0];
+					block[idx + 1] = rgb[1];
+					block[idx + 2] = rgb[2];
+				}
+			}
+
+			// compress using mode 11
+			float msle;
+			EncodeBC6HMode11( block, outData, msle );
+			outData += 16;
+		}
+		outData += dstPadding;
+		inBuf += srcPadding * 4; // srcPadding per row, 4 rows per block
+	}
+
+	delete[] block;
+}
+
+void idDxtEncoder::CompressImageR11G11B10_BC6HQ( const byte* inBuf, byte* outBuf, int width, int height )
+{
+	// TODO
+	idLib::FatalError( "idDxtEncoder::CompressImageR11G11B10_BC6HQ not implemented" );
+}
+// RB end

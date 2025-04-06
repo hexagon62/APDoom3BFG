@@ -110,7 +110,7 @@ void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_con
 		byte* dxtPic = pic;
 		int	dxtWidth = 0;
 		int	dxtHeight = 0;
-		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 )
+		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H )
 		{
 			if( ( scaledWidth & 3 ) || ( scaledHeight & 3 ) )
 			{
@@ -202,6 +202,24 @@ void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_con
 
 					dxt.CompressImageDXT5Fast( dxtPic, img.data, dxtWidth, dxtHeight );
 				}
+			}
+		}
+		else if( textureFormat == FMT_BC6H )
+		{
+			img.Alloc( dxtWidth * dxtHeight );
+			idDxtEncoder dxt;
+
+			if( image_highQualityCompression.GetBool() )
+			{
+				common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6HQ", width, width ) );
+
+				dxt.CompressImageR11G11B10_BC6HQ( dxtPic, img.data, dxtWidth, dxtHeight );
+			}
+			else
+			{
+				common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6Fast", width, width ) );
+
+				dxt.CompressImageR11G11B10_BC6Fast( dxtPic, img.data, dxtWidth, dxtHeight );
 			}
 		}
 		else if( textureFormat == FMT_LUM8 || textureFormat == FMT_INT8 )
@@ -420,7 +438,7 @@ void idBinaryImage::Load2DAtlasMipchainFromMemory( int width, int height, const 
 		byte* dxtPic = pic;
 		int	dxtWidth = 0;
 		int	dxtHeight = 0;
-		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 )
+		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H )
 		{
 			if( ( scaledWidth & 3 ) || ( scaledHeight & 3 ) )
 			{
@@ -512,6 +530,24 @@ void idBinaryImage::Load2DAtlasMipchainFromMemory( int width, int height, const 
 
 					dxt.CompressImageDXT5Fast( dxtPic, img.data, dxtWidth, dxtHeight );
 				}
+			}
+		}
+		else if( textureFormat == FMT_BC6H )
+		{
+			img.Alloc( dxtWidth * dxtHeight );
+			idDxtEncoder dxt;
+
+			if( image_highQualityCompression.GetBool() )
+			{
+				common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6HQ", width, width ) );
+
+				dxt.CompressImageR11G11B10_BC6HQ( dxtPic, img.data, dxtWidth, dxtHeight );
+			}
+			else
+			{
+				common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6Fast", width, width ) );
+
+				dxt.CompressImageR11G11B10_BC6Fast( dxtPic, img.data, dxtWidth, dxtHeight );
 			}
 		}
 		else if( textureFormat == FMT_LUM8 || textureFormat == FMT_INT8 )
@@ -647,8 +683,10 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 			ALIGN16( byte padBlock[64] );
 			int		padSize;
 			const byte* padSrc;
-			if( scaledWidth < 4 && ( textureFormat == FMT_DXT1 || textureFormat == FMT_DXT5 ) )
+
+			if( scaledWidth < 4 && ( textureFormat == FMT_DXT1 || textureFormat == FMT_DXT5 || textureFormat == FMT_BC6H ) )
 			{
+				// RB: TODO FMT_BC6H
 				PadImageTo4x4( pic, scaledWidth, scaledWidth, padBlock );
 				padSize = 4;
 				padSrc = padBlock;
@@ -663,6 +701,7 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 			img.destZ = side;
 			img.width = padSize;
 			img.height = padSize;
+
 			if( textureFormat == FMT_DXT1 )
 			{
 				img.Alloc( padSize * padSize / 2 );
@@ -697,6 +736,24 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 					common->LoadPacifierBinarizeInfo( va( "(%d x %d) - DXT5Fast", width, width ) );
 
 					dxt.CompressImageDXT5Fast( padSrc, img.data, padSize, padSize );
+				}
+			}
+			else if( textureFormat == FMT_BC6H )
+			{
+				img.Alloc( padSize * padSize );
+				idDxtEncoder dxt;
+
+				if( image_highQualityCompression.GetBool() )
+				{
+					common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6HQ", width, width ) );
+
+					dxt.CompressImageR11G11B10_BC6HQ( padSrc, img.data, padSize, padSize );
+				}
+				else
+				{
+					common->LoadPacifierBinarizeInfo( va( "(%d x %d) - BC6Fast", width, width ) );
+
+					dxt.CompressImageR11G11B10_BC6Fast( padSrc, img.data, padSize, padSize );
 				}
 			}
 			else if( textureFormat == FMT_R11G11B10F )
@@ -835,7 +892,7 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 	swap.Big( fileData.height );
 	swap.Big( fileData.numLevels );
 
-	if( BIMAGE_MAGIC != fileData.headerMagic )
+	if( fileData.headerMagic != BIMAGE_MAGIC_BFG && fileData.headerMagic != BIMAGE_MAGIC )
 	{
 		return false;
 	}

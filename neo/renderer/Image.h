@@ -105,6 +105,7 @@ enum textureFormat_t
 	FMT_RGBA32F,		// 128 bpp
 	FMT_R32F,			// 32 bpp
 	FMT_R11G11B10F,		// 32 bpp
+	FMT_BC6H,			// 8 bpp
 
 	// ^-- used up until RBDOOM-3-BFG 1.3
 	FMT_R8,
@@ -370,7 +371,7 @@ public:
 
 	bool		IsCompressed() const
 	{
-		return ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 );
+		return ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 || opts.format == FMT_BC6H );
 	}
 
 	textureUsage_t GetUsage() const
