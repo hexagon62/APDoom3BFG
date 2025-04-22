@@ -5712,7 +5712,7 @@ static float CalcMSLE( const float* a, const float* b )
 		delta[i] = log2f( ( b[i] + 1.0f ) / ( a[i] + 1.0f ) );
 	}
 	float deltaSq[3] = { delta[0]* delta[0], delta[1]* delta[1], delta[2]* delta[2] };
-	return deltaSq[0] + deltaSq[1] + deltaSq[2]; // Ohne Luminanzgewichte für Einfachheit
+	return deltaSq[0] + deltaSq[1] + deltaSq[2]; // without luminance for simplicity
 }
 
 // Quantize to 10 Bit
@@ -5721,7 +5721,7 @@ static void Quantize10( float* out, const float* in )
 	const float scale = 1023.0f; // 10 Bit
 	for( int i = 0; i < 3; ++i )
 	{
-		out[i] = std::floor( in[i] * scale / HALF_MAX ); // Skaliere auf 0-1023
+		out[i] = std::floor( in[i] * scale / HALF_MAX ); // scale to 0-1023
 		out[i] = std::max( 0.0f, std::min( out[i], scale ) );
 	}
 }
@@ -5907,6 +5907,107 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 
 	delete[] block;
 }
+
+
+/*
+========================
+ConvertR11G11B10ToFP16
+Konvertiert einen 4x4-Block von R11G11B10 nach FP16
+========================
+*/
+static void ConvertR11G11B10ToFP16( const byte* inBuf, int width, halfFloat_t* fp16Buf, int blockX, int blockY )
+{
+	for( int y = 0; y < 4; ++y )
+	{
+		for( int x = 0; x < 4; ++x )
+		{
+			int pixelX = blockX * 4 + x;
+			int pixelY = blockY * 4 + y;
+			if( pixelX >= width || pixelY >= width )
+			{
+				continue;    // Randbehandlung
+			}
+
+			const byte* pixel = inBuf + ( pixelY * width + pixelX ) * 4;
+			uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
+			float rgb[3];
+			r11g11b10f_to_float3( packed, rgb );
+
+			int idx = ( y * 4 + x ) * 3; // RGB, kein Alpha
+			fp16Buf[idx + 0] = F32toF16( rgb[0] );
+			fp16Buf[idx + 1] = F32toF16( rgb[1] );
+			fp16Buf[idx + 2] = F32toF16( rgb[2] );
+		}
+	}
+}
+
+/*
+========================
+idDxtEncoder::ConvertR11G11B10_BC6
+
+ISPC-Variant with ISPCTextureCompressor for BC6H
+========================
+*/
+#if !defined( DMAP )
+
+#include "../../libs/ispc_texcomp/ispc_texcomp.h"
+
+void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height )
+{
+	// validation
+	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
+	{
+		idLib::Warning( "Invalid dimensions for BC6H compression: %dx%d", width, height );
+		return;
+	}
+
+	this->width = width;
+	this->height = height;
+	this->outData = outBuf;
+
+	// ISPC configuration
+	bc6h_enc_settings settings;
+	GetProfile_bc6h_basic( &settings );
+
+	int numBlocksX = width / 4;
+	int numBlocksY = height / 4;
+	int expectedOutputSize = numBlocksX * numBlocksY * 16; // 16 bytes per 4x4 Block
+
+	// temp FP16-Buffer for one 4x4-Block (16 Pixel x 3 channels)
+	halfFloat_t* fp16Buf = nullptr;
+	try
+	{
+		fp16Buf = new halfFloat_t[16 * 3];
+	}
+	catch( const std::bad_alloc& e )
+	{
+		idLib::Error( "Couldn't alloc FP16 buffer for BC6H compression: %s", e.what() );
+		return;
+	}
+
+	for( int blockY = 0; blockY < numBlocksY; ++blockY )
+	{
+		for( int blockX = 0; blockX < numBlocksX; ++blockX )
+		{
+			ConvertR11G11B10ToFP16( inBuf, width, fp16Buf, blockX, blockY );
+
+			rgba_surface surface;
+			surface.ptr = reinterpret_cast<unsigned char*>( fp16Buf );
+			surface.width = 4;
+			surface.height = 4;
+			surface.stride = 4 * 3 * sizeof( halfFloat_t ); // bytes per row
+
+			CompressBlocksBC6H( &surface, outBuf, &settings );
+
+			outBuf += 16; // next block
+		}
+		outBuf += dstPadding;
+		inBuf += srcPadding * 4; // srcPadding per row, 4 rows per block
+	}
+
+	delete[] fp16Buf;
+}
+#endif // #if !defined( DMAP )
 
 void idDxtEncoder::CompressImageR11G11B10_BC6HQ( const byte* inBuf, byte* outBuf, int width, int height )
 {

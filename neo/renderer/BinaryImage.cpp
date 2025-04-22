@@ -297,7 +297,7 @@ void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_con
 
 		// downsample for the next level
 		byte* shrunk = NULL;
-		if( textureFormat == FMT_R11G11B10F )
+		if( textureFormat == FMT_R11G11B10F || textureFormat == FMT_BC6H )
 		{
 			shrunk = R_MipMapR11G11B10F( pic, scaledWidth, scaledHeight );
 		}
@@ -774,7 +774,7 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 
 			// downsample for the next level
 			byte* shrunk = NULL;
-			if( textureFormat == FMT_R11G11B10F )
+			if( textureFormat == FMT_R11G11B10F || textureFormat == FMT_BC6H )
 			{
 				shrunk = R_MipMapR11G11B10F( pic, scaledWidth, scaledWidth );
 			}

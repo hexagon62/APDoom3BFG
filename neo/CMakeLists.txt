@@ -435,6 +435,9 @@ endif()
 if(USE_INTRINSICS_SSE)
 	add_subdirectory(libs/moc)
 	set(MASKED_OCCLUSION_LIBRARY MaskedOcclusionCulling)
+
+	add_subdirectory(libs/ispc_texcomp)
+	set(ISPC_TEXCOMP_LIBRARY ispc_texcomp)
 endif()
 
 file(GLOB NATVIS_SOURCES .natvis)
@@ -1683,9 +1686,9 @@ endif()
 
 # needs to come after nvrhi_d3d11 etc. for link order
 target_link_libraries(RBDoom3BFG nvrhi)
-target_link_libraries(RBDoom3BFG ShaderMakeBlob ${MASKED_OCCLUSION_LIBRARY})
+target_link_libraries(RBDoom3BFG ShaderMakeBlob ${MASKED_OCCLUSION_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
 
 add_subdirectory(shaders)
 add_dependencies(Shaders ShaderMake)
-add_dependencies(RBDoom3BFG Shaders ${MASKED_OCCLUSION_LIBRARY})
+add_dependencies(RBDoom3BFG Shaders ${MASKED_OCCLUSION_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
 

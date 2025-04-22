@@ -105,7 +105,7 @@ public:
 	// fast DXT5 compression for real-time use at the cost of a little quality
 	void	CompressImageR11G11B10_BC6Fast( const byte* inBuf, byte* outBuf, int width, int height );
 	void	CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, byte* outBuf, int width, int height );
-	//void	CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height );
+	void	CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height );
 	// RB end
 
 	// high quality CTX1 compression, uses exhaustive search to find a line through 2D space and is very slow
@@ -374,7 +374,7 @@ idDxtEncoder::CompressImageDXT5Fast
 */
 ID_INLINE void idDxtEncoder::CompressImageR11G11B10_BC6Fast( const byte* inBuf, byte* outBuf, int width, int height )
 {
-#if 0 //defined(USE_INTRINSICS_SSE)
+#if defined(USE_INTRINSICS_SSE) && !defined( DMAP )
 	CompressImageR11G11B10_BC6Fast_SSE2( inBuf, outBuf, width, height );
 #else
 	CompressImageR11G11B10_BC6Fast_Generic( inBuf, outBuf, width, height );
