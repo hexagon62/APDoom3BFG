@@ -5909,6 +5909,13 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 }
 
 
+
+#if !defined( DMAP )
+
+#if 0
+
+#include "../../libs/ispc_texcomp/ispc_texcomp.h"
+
 /*
 ========================
 ConvertR11G11B10ToFP16
@@ -5940,13 +5947,6 @@ static void ConvertR11G11B10ToFP16( const byte* inBuf, int width, halfFloat_t* f
 		}
 	}
 }
-
-
-#if !defined( DMAP )
-
-#if 0
-
-#include "../../libs/ispc_texcomp/ispc_texcomp.h"
 
 /*
 ========================
@@ -6016,7 +6016,7 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 /*
 ========================
 idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2
-Compressonator-Variante für BC6H-Kompression
+Compressonator-based variant for BC6H compression
 ========================
 */
 
@@ -6025,7 +6025,7 @@ Compressonator-Variante für BC6H-Kompression
 /*
 ========================
 ConvertR11G11B10ToFP32
-Konvertiert das gesamte Bild von R11G11B10 nach FP32
+Converts the entire image from R11G11B10 to FP32
 ========================
 */
 static void ConvertR11G11B10ToFP32( const byte* inBuf, int width, int height, float* fp32Buf )
@@ -6053,7 +6053,7 @@ static void ConvertR11G11B10ToFP32( const byte* inBuf, int width, int height, fl
 			float rgb[3];
 			r11g11b10f_to_float3( packed, rgb );
 
-			//int idx = ( y * width + x ) * 3; // RGB, kein Alpha
+			//int idx = ( y * width + x ) * 3; // RGB, no Alpha
 			int idx = ( y * width + x ) * 4;
 			fp32Buf[idx + 0] = rgb[0];
 			fp32Buf[idx + 1] = rgb[1];
@@ -6066,15 +6066,15 @@ static void ConvertR11G11B10ToFP32( const byte* inBuf, int width, int height, fl
 /*
 ========================
 idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2
-Compressonator-Variante für BC6H-Kompression mit CMP_FORMAT_RGB_32F, single call, multi-threaded
+Compressonator-based variant for BC6H compression with CMP_FORMAT_RGBA_32F, single call, multi-threaded
 ========================
 */
 void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height )
 {
-	// Validierung
+	// Validation
 	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
 	{
-		idLib::Warning( "Ungültige Dimensionen für BC6H-Kompression: %dx%d", width, height );
+		idLib::Warning( "Invalid dimensions for BC6H compression: %dx%d", width, height );
 		return;
 	}
 
@@ -6082,34 +6082,34 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 	this->height = height;
 	this->outData = outBuf;
 
-	// Berechne Blockanzahl und Ausgabegröße
+	// Calculate block count and output size
 	int numBlocksX = width / 4;
 	int numBlocksY = height / 4;
-	int expectedOutputSize = numBlocksX * numBlocksY * 16; // 16 Bytes pro 4x4 Block
+	int expectedOutputSize = numBlocksX * numBlocksY * 16; // 16 bytes per 4x4 block
 
-	// Temporärer FP32-Puffer für das gesamte Bild
+	// Temporary FP32 buffer for the entire image
 	float* fp32Buf = nullptr;
 	try
 	{
-		fp32Buf = new float[width * height * 4]; // RGB, 3 Kanäle
+		fp32Buf = new float[width * height * 4]; // RGBA, 4 channels
 	}
 	catch( const std::bad_alloc& e )
 	{
-		idLib::Error( "Konnte keinen FP32-Puffer für BC6H-Kompression allozieren: %s", e.what() );
+		idLib::Error( "Failed to allocate FP32 buffer for BC6H compression: %s", e.what() );
 		return;
 	}
 
-	// Konvertiere R11G11B10 zu FP32
+	// Convert R11G11B10 to FP32
 	ConvertR11G11B10ToFP32( inBuf, width, height, fp32Buf );
 
-	// Compressonator-Konfiguration
+	// Compressonator configuration
 	CMP_Texture srcTexture = {0};
 	srcTexture.dwSize = sizeof( CMP_Texture );
 	srcTexture.dwWidth = width;
 	srcTexture.dwHeight = height;
-	srcTexture.format = CMP_FORMAT_RGBA_32F; // FP32 RGB
-	srcTexture.dwPitch = width * 4 * sizeof( float ); // Bytes pro Zeile
-	srcTexture.dwDataSize = width * height * 4 * sizeof( float ); // Gesamte Bilddaten
+	srcTexture.format = CMP_FORMAT_RGBA_32F; // FP32 RGBA
+	srcTexture.dwPitch = width * 4 * sizeof( float ); // Bytes per row
+	srcTexture.dwDataSize = width * height * 4 * sizeof( float ); // Total image data size
 	srcTexture.pData = reinterpret_cast<CMP_BYTE*>( fp32Buf );
 
 	CMP_Texture destTexture = {0};
@@ -6117,24 +6117,24 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 	destTexture.dwWidth = width;
 	destTexture.dwHeight = height;
 	destTexture.format = CMP_FORMAT_BC6H;
-	destTexture.dwDataSize = expectedOutputSize; // Gesamte Ausgabegröße
+	destTexture.dwDataSize = expectedOutputSize; // Total output size
 	destTexture.pData = outBuf;
 
 	CMP_CompressOptions options = {0};
 	options.dwSize = sizeof( CMP_CompressOptions );
-	options.fquality = 0.5f; // Mittlere Qualität für Geschwindigkeit (0.0 bis 1.0)
-	options.dwnumThreads = 0; // 0 = Automatische Thread-Anzahl basierend auf CPU-Kernen
+	options.fquality = 0.5f; // Medium quality for speed (0.0 to 1.0)
+	options.dwnumThreads = 0; // 0 = auto-detect number of threads based on CPU cores
 
-	// Kompression ausführen (ein einziger Aufruf)
+	// Execute compression (single call)
 	CMP_ERROR cmp_status = CMP_ConvertTexture( &srcTexture, &destTexture, &options, nullptr );
 	if( cmp_status != CMP_OK )
 	{
-		idLib::Warning( "BC6H-Kompression fehlgeschlagen mit Fehlercode %d", cmp_status );
-		memset( outBuf, 0, expectedOutputSize ); // Fülle mit Nullen bei Fehler
+		idLib::Warning( "BC6H compression failed with error code %d", cmp_status );
+		memset( outBuf, 0, expectedOutputSize ); // Fill with zeros on error
 	}
 	else
 	{
-		// Padding hinzufügen
+		// Add padding
 		if( dstPadding > 0 )
 		{
 			byte* endPtr = outBuf + expectedOutputSize;
@@ -6152,6 +6152,7 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 
 	delete[] fp32Buf;
 }
+
 
 #endif
 
