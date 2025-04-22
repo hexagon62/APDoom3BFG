@@ -96,7 +96,8 @@ enum textureFormat_t
 	FMT_Y16_X16,		// 32 bpp
 	FMT_RGB565,			// 16 bpp
 
-	// ^-- used in BFG edition, don't change above for .bimage compatibility
+	// ^-- used in BFG edition, don't change above for original .bimage compatibility
+
 	FMT_ETC1_RGB8_OES,	// 4 bpp
 	FMT_SHADOW_ARRAY,	// 32 bpp * 6
 	FMT_RG16F,			// 32 bpp
@@ -104,9 +105,11 @@ enum textureFormat_t
 	FMT_RGBA32F,		// 128 bpp
 	FMT_R32F,			// 32 bpp
 	FMT_R11G11B10F,		// 32 bpp
-	FMT_BC6H,			// 8 bpp
+	// ^-- used up until RBDOOM-3-BFG 1.3 == BIMAGE_VERSION_BFG
 
-	// ^-- used up until RBDOOM-3-BFG 1.3
+	FMT_BC6H,			// 8 bpp
+	// ^-- used up until RBDOOM-3-BFG 1.6 >= BIMAGE_VERSION_BC6
+
 	FMT_R8,
 	FMT_DEPTH_STENCIL,  // 32 bpp
 	FMT_RGBA16S,		// 64 bpp
