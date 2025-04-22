@@ -5701,6 +5701,12 @@ void idDxtEncoder::ConvertImageDXN1_DXT1( const byte* inBuf, byte* outBuf, int w
 
 #include "../../libs/mesa/format_r11g11b10f.h"
 
+typedef union
+{
+	uint32	i;
+	byte	b[4];
+} convert_uint32_t;
+
 static const float HALF_MAX = 65504.0f;
 
 // helper function: Mean Squared Logarithmic Error (MSLE)
@@ -5882,7 +5888,14 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 				for( int x = 0; x < 4; ++x )
 				{
 					const byte* pixel = inBuf + ( ( j + y ) * width + ( i + x ) ) * 4;
-					uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
+
+					convert_uint32_t p;
+					p.b[0] = pixel[0];
+					p.b[1] = pixel[1];
+					p.b[2] = pixel[2];
+					p.b[3] = pixel[3];
+					uint32_t packed = p.i;
+					//uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
 
 					float rgb[3];
 					r11g11b10f_to_float3( packed, rgb );
@@ -5916,48 +5929,30 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 
 #include "../../libs/ispc_texcomp/ispc_texcomp.h"
 
-/*
-========================
-ConvertR11G11B10ToFP16
-Konvertiert einen 4x4-Block von R11G11B10 nach FP16
-========================
-*/
-static void ConvertR11G11B10ToFP16( const byte* inBuf, int width, int height, halfFloat_t* fp16Buf, int blockX, int blockY )
+static void ConvertR11G11B10ImageToFP16( const byte* inBuf, int width, int height, halfFloat_t* outBuf )
 {
-	typedef union
+	for( int y = 0; y < height; ++y )
 	{
-		uint32	i;
-		byte	b[4];
-	} convert_t;
-
-	for( int y = 0; y < 4; ++y )
-	{
-		for( int x = 0; x < 4; ++x )
+		for( int x = 0; x < width; ++x )
 		{
-			int pixelX = blockX * 4 + x;
-			int pixelY = blockY * 4 + y;
-			if( pixelX >= width || pixelY >= height )
-			{
-				continue;    // Randbehandlung
-			}
+			const byte* pixel = inBuf + ( y * width + x ) * 4;
 
-			const byte* pixel = inBuf + ( pixelY * width + pixelX ) * 4;
-
-			convert_t p;
+			convert_uint32_t p;
 			p.b[0] = pixel[0];
 			p.b[1] = pixel[1];
 			p.b[2] = pixel[2];
 			p.b[3] = pixel[3];
 			uint32_t packed = p.i;
 			//uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
+
 			float rgb[3];
 			r11g11b10f_to_float3( packed, rgb );
 
-			int idx = ( y * 4 + x ) * 4;
-			fp16Buf[idx + 0] = F32toF16( rgb[0] );
-			fp16Buf[idx + 1] = F32toF16( rgb[1] );
-			fp16Buf[idx + 2] = F32toF16( rgb[2] );
-			fp16Buf[idx + 3] = F32toF16( 1.0f );
+			int idx = ( y * width + x ) * 4;
+			outBuf[idx + 0] = F32toF16( rgb[0] );
+			outBuf[idx + 1] = F32toF16( rgb[1] );
+			outBuf[idx + 2] = F32toF16( rgb[2] );
+			outBuf[idx + 3] = F32toF16( 1.0f ); // Alpha
 		}
 	}
 }
@@ -5971,7 +5966,6 @@ ISPC-Variant with ISPCTextureCompressor for BC6H
 */
 void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height )
 {
-	// validation
 	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
 	{
 		idLib::Warning( "Invalid dimensions for BC6H compression: %dx%d", width, height );
@@ -5982,19 +5976,13 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 	this->height = height;
 	this->outData = outBuf;
 
-	// ISPC configuration
 	bc6h_enc_settings settings;
 	GetProfile_bc6h_basic( &settings );
 
-	int numBlocksX = width / 4;
-	int numBlocksY = height / 4;
-	int expectedOutputSize = numBlocksX * numBlocksY * 16; // 16 bytes per 4x4 Block
-
-	// temp FP16-Buffer for one 4x4-Block (16 Pixel x 4 channels)
 	halfFloat_t* fp16Buf = nullptr;
 	try
 	{
-		fp16Buf = new halfFloat_t[16 * 4];
+		fp16Buf = new halfFloat_t[width * height * 4];
 	}
 	catch( const std::bad_alloc& e )
 	{
@@ -6002,27 +5990,15 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 		return;
 	}
 
-	for( int blockY = 0; blockY < numBlocksY; ++blockY )
-	{
-		for( int blockX = 0; blockX < numBlocksX; ++blockX )
-		{
-			ConvertR11G11B10ToFP16( inBuf, width, height, fp16Buf, blockX, blockY );
+	ConvertR11G11B10ImageToFP16( inBuf, width, height, fp16Buf );
 
-			rgba_surface surface;
-			surface.ptr = reinterpret_cast<unsigned char*>( fp16Buf );
-			surface.width = 4;
-			surface.height = 4;
-			surface.stride = 4 * 4 * sizeof( halfFloat_t ); // bytes per row
+	rgba_surface surface;
+	surface.ptr = reinterpret_cast<unsigned char*>( fp16Buf );
+	surface.width = width;
+	surface.height = height;
+	surface.stride = width * 4 * sizeof( halfFloat_t );
 
-			CompressBlocksBC6H( &surface, outBuf, &settings );
-
-			outBuf += 16; // next block
-
-			common->LoadPacifierBinarizeProgressIncrement( 16 );
-		}
-		outBuf += dstPadding;
-		inBuf += srcPadding * 4; // srcPadding per row, 4 rows per block
-	}
+	CompressBlocksBC6H( &surface, outBuf, &settings );
 
 	delete[] fp16Buf;
 }
@@ -6046,19 +6022,13 @@ Converts the entire image from R11G11B10 to FP32
 */
 static void ConvertR11G11B10ToFP32( const byte* inBuf, int width, int height, float* fp32Buf )
 {
-	typedef union
-	{
-		uint32	i;
-		byte	b[4];
-	} convert_t;
-
 	for( int y = 0; y < height; ++y )
 	{
 		for( int x = 0; x < width; ++x )
 		{
 			const byte* pixel = inBuf + ( y * width + x ) * 4;
 
-			convert_t p;
+			convert_uint32_t p;
 			p.b[0] = pixel[0];
 			p.b[1] = pixel[1];
 			p.b[2] = pixel[2];
