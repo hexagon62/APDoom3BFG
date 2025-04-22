@@ -34,13 +34,12 @@ If you have questions concerning this license or the applicable additional terms
 
 enum textureType_t
 {
-	TT_DISABLED,
-	TT_2D,
-	TT_CUBIC,
-	// RB begin
-	TT_2D_ARRAY,
-	TT_2D_MULTISAMPLE,
-	// RB end
+	// RB: renamed to DDT_ to solve conflict with AMD compressonator
+	DTT_DISABLED,
+	DTT_2D,
+	DTT_CUBIC,
+	DTT_2D_ARRAY,		// new
+	DTT_2D_MULTISAMPLE,	// new
 };
 
 /*
@@ -172,7 +171,7 @@ ID_INLINE idImageOpts::idImageOpts()
 	width			= 0;
 	height			= 0;
 	numLevels		= 0;
-	textureType		= TT_2D;
+	textureType		= DTT_2D;
 	gammaMips		= false;
 	readback		= false;
 	isRenderTarget	= false;

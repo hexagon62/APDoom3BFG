@@ -111,6 +111,8 @@ int BlockSizeForFormat( const textureFormat_t& format )
 			return 8;
 		case FMT_DXT5:
 			return 16;
+		case FMT_BC6H:
+			return 16;
 		default:
 			return 1;
 	}
@@ -124,7 +126,7 @@ Returns the row bytes for the given image.
 */
 int GetRowPitch( const textureFormat_t& format, int width )
 {
-	bool bc = ( format == FMT_DXT1 || format == FMT_DXT5 );
+	bool bc = ( format == FMT_DXT1 || format == FMT_DXT5 || format == FMT_BC6H );
 
 	if( bc )
 	{
@@ -300,7 +302,7 @@ ID_INLINE void idImage::DeriveOpts()
 			{
 				temp_width >>= 1;
 				temp_height >>= 1;
-				if( ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 || opts.format == FMT_ETC1_RGB8_OES ) &&
+				if( ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 || opts.format == FMT_BC6H || opts.format == FMT_ETC1_RGB8_OES ) &&
 						( ( temp_width & 0x3 ) != 0 || ( temp_height & 0x3 ) != 0 ) )
 				{
 					break;
@@ -339,7 +341,7 @@ void idImage::GenerateImage( const byte* pic, int width, int height, textureFilt
 	usage = usageParm;
 	cubeFiles = _cubeFiles;
 
-	opts.textureType = ( sampleCount > 1 ) ? TT_2D_MULTISAMPLE : TT_2D;
+	opts.textureType = ( sampleCount > 1 ) ? DTT_2D_MULTISAMPLE : DTT_2D;
 	opts.width = width;
 	opts.height = height;
 	opts.numLevels = 0;
@@ -356,7 +358,7 @@ void idImage::GenerateImage( const byte* pic, int width, int height, textureFilt
 	DeriveOpts();
 
 	// RB: allow pic == NULL for internal framebuffer images
-	if( pic == NULL || opts.textureType == TT_2D_MULTISAMPLE )
+	if( pic == NULL || opts.textureType == DTT_2D_MULTISAMPLE )
 	{
 		AllocImage();
 		isLoaded = true;
@@ -427,7 +429,7 @@ void idImage::GenerateCubeImage( const byte* pic[6], int size, textureFilter_t f
 	usage = usageParm;
 	cubeFiles = CF_NATIVE;
 
-	opts.textureType = TT_CUBIC;
+	opts.textureType = DTT_CUBIC;
 	opts.width = size;
 	opts.height = size;
 	opts.numLevels = 0;
@@ -493,7 +495,7 @@ void idImage::GenerateShadowArray( int width, int height, textureFilter_t filter
 	cubeFiles = CF_2D_ARRAY;
 	byte* pic = nullptr;
 
-	opts.textureType = TT_2D_ARRAY;
+	opts.textureType = DTT_2D_ARRAY;
 	opts.width = width;
 	opts.height = height;
 	opts.numLevels = 0;
@@ -567,7 +569,7 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 		sourceFileTime = FILE_NOT_FOUND_TIMESTAMP;
 		if( cubeFiles != CF_2D )
 		{
-			opts.textureType = TT_CUBIC;
+			opts.textureType = DTT_CUBIC;
 			repeat = TR_CLAMP;
 		}
 	}
@@ -576,17 +578,17 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 		// RB: added CF_2D_ARRAY
 		if( cubeFiles == CF_2D_ARRAY )
 		{
-			opts.textureType = TT_2D_ARRAY;
+			opts.textureType = DTT_2D_ARRAY;
 		}
 		else if( cubeFiles == CF_NATIVE || cubeFiles == CF_CAMERA || cubeFiles == CF_QUAKE1 || cubeFiles == CF_SINGLE || cubeFiles == CF_PANORAMA )
 		{
-			opts.textureType = TT_CUBIC;
+			opts.textureType = DTT_CUBIC;
 			repeat = TR_CLAMP;
 			R_LoadCubeImages( GetName(), cubeFiles, NULL, NULL, &sourceFileTime, cubeMapSize );
 		}
 		else
 		{
-			opts.textureType = TT_2D;
+			opts.textureType = DTT_2D;
 			R_LoadImageProgram( GetName(), NULL, NULL, NULL, &sourceFileTime, &usage );
 		}
 	}
@@ -735,7 +737,7 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 
 			repeat = TR_CLAMP;
 
-			opts.textureType = TT_CUBIC;
+			opts.textureType = DTT_CUBIC;
 			opts.width = size;
 			opts.height = size;
 			opts.numLevels = 0;
@@ -942,7 +944,7 @@ void idImage::UploadScratch( const byte* data, int cols, int rows, nvrhi::IComma
 			pic[i] = data + cols * rows * 4 * i;
 		}
 
-		if( opts.textureType != TT_CUBIC || usage != TD_LOOKUP_TABLE_RGBA )
+		if( opts.textureType != DTT_CUBIC || usage != TD_LOOKUP_TABLE_RGBA )
 		{
 			GenerateCubeImage( pic, cols, TF_LINEAR, TD_LOOKUP_TABLE_RGBA, commandList );
 			return;
@@ -1000,7 +1002,7 @@ void idImage::UploadScratch( const byte* data, int cols, int rows, nvrhi::IComma
 			commandList->commitBarriers();
 		}
 #else
-		if( opts.textureType != TT_2D || usage != TD_LOOKUP_TABLE_RGBA )
+		if( opts.textureType != DTT_2D || usage != TD_LOOKUP_TABLE_RGBA )
 		{
 			GenerateImage( data, cols, rows, TF_LINEAR, TR_REPEAT, TD_LOOKUP_TABLE_RGBA, commandList );
 			return;
@@ -1067,18 +1069,18 @@ void idImage::Print() const
 
 	switch( opts.textureType )
 	{
-		case TT_2D:
+		case DTT_2D:
 			common->Printf( "      " );
 			break;
-		case TT_CUBIC:
+		case DTT_CUBIC:
 			common->Printf( "C     " );
 			break;
 
-		case TT_2D_ARRAY:
+		case DTT_2D_ARRAY:
 			common->Printf( "2D-A  " );
 			break;
 
-		case TT_2D_MULTISAMPLE:
+		case DTT_2D_MULTISAMPLE:
 			common->Printf( "2D-MS " );
 			break;
 

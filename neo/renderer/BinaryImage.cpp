@@ -55,7 +55,7 @@ idBinaryImage::Load2DFromMemory
 */
 void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_const, int numLevels, textureFormat_t& textureFormat, textureColor_t& colorFormat, bool gammaMips )
 {
-	fileData.textureType = TT_2D;
+	fileData.textureType = DTT_2D;
 	fileData.format = textureFormat;
 	fileData.colorFormat = colorFormat;
 	fileData.width = width;
@@ -329,7 +329,7 @@ void idBinaryImage::Load2DAtlasMipchainFromMemory( int width, int height, const 
 {
 	int sourceWidth = width * ( 2.0f / 3.0f ); // RB
 
-	fileData.textureType = TT_2D;
+	fileData.textureType = DTT_2D;
 	fileData.format = textureFormat;
 	fileData.colorFormat = CFM_DEFAULT;
 	fileData.width = sourceWidth;
@@ -658,7 +658,7 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 {
 	common->LoadPacifierBinarizeInfo( va( "cube (%d)", width ) );
 
-	fileData.textureType = TT_CUBIC;
+	fileData.textureType = DTT_CUBIC;
 	fileData.format = textureFormat;
 	fileData.colorFormat = CFM_DEFAULT;
 	fileData.height = fileData.width = width;
@@ -740,6 +740,15 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 			}
 			else if( textureFormat == FMT_BC6H )
 			{
+#if 0
+				// RB: copy it as it was a RGBA8 because of the same size
+				fileData.format = textureFormat = FMT_R11G11B10F;
+				img.Alloc( padSize * padSize * 4 );
+				for( int i = 0; i < img.dataSize; i++ )
+				{
+					img.data[ i ] = pic[ i ];
+				}
+#else
 				img.Alloc( padSize * padSize );
 				idDxtEncoder dxt;
 
@@ -755,6 +764,7 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 
 					dxt.CompressImageR11G11B10_BC6Fast( padSrc, img.data, padSize, padSize );
 				}
+#endif
 			}
 			else if( textureFormat == FMT_R11G11B10F )
 			{
@@ -905,7 +915,7 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 	// RB end
 
 	int numImages = fileData.numLevels;
-	if( fileData.textureType == TT_CUBIC )
+	if( fileData.textureType == DTT_CUBIC )
 	{
 		numImages *= 6;
 	}
@@ -926,7 +936,7 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 		swap.Big( img.height );
 		swap.Big( img.dataSize );
 		assert( img.level >= 0 && img.level < fileData.numLevels );
-		assert( img.destZ == 0 || fileData.textureType == TT_CUBIC );
+		assert( img.destZ == 0 || fileData.textureType == DTT_CUBIC );
 		assert( img.dataSize > 0 );
 		// DXT images need to be padded to 4x4 block sizes, but the original image
 		// sizes are still retained, so the stored data size may be larger than
@@ -940,7 +950,7 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 			img.Alloc( img.dataSize * 2 );
 		}
 		// SRS - For compressed formats, match allocation to what nvrhi expects for the texture's mip variants
-		else if( ( textureFormat_t )fileData.format == FMT_DXT1 || ( textureFormat_t )fileData.format == FMT_DXT5 )
+		else if( ( textureFormat_t )fileData.format == FMT_DXT1 || ( textureFormat_t )fileData.format == FMT_DXT5 || ( textureFormat_t )fileData.format == FMT_BC6H )
 		{
 			int rowPitch = GetRowPitch( ( textureFormat_t )fileData.format, img.width );
 			int mipRows = ( ( ( ( fileData.height + 3 ) & ~3 ) >> img.level ) + 3 ) / 4;

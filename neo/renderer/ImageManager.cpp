@@ -554,7 +554,7 @@ idImage* idImageManager::ScratchImage( const char* _name, idImageOpts* imgOpts, 
 
 	// clamp is the only repeat mode that makes sense for cube maps, but
 	// some platforms let them stay in repeat mode and get border seam issues
-	if( imgOpts->textureType == TT_CUBIC && repeat != TR_CLAMP )
+	if( imgOpts->textureType == DTT_CUBIC && repeat != TR_CLAMP )
 	{
 		repeat = TR_CLAMP;
 	}
