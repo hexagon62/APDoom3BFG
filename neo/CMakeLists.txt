@@ -436,11 +436,11 @@ if(USE_INTRINSICS_SSE)
 	add_subdirectory(libs/moc)
 	set(MASKED_OCCLUSION_LIBRARY MaskedOcclusionCulling)
 
-	#add_subdirectory(libs/ispc_texcomp)
-	#set(ISPC_TEXCOMP_LIBRARY ispc_texcomp)
+	add_subdirectory(libs/ispc_texcomp)
+	set(ISPC_TEXCOMP_LIBRARY ispc_texcomp)
 	
-	set(ISPC_TEXCOMP_LIBRARY Compressonator_MD)
-	link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/compressonator/lib)
+	#set(ISPC_TEXCOMP_LIBRARY Compressonator_MD)
+	#link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/compressonator/lib)
 endif()
 
 file(GLOB NATVIS_SOURCES .natvis)

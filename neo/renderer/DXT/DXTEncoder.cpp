@@ -5912,7 +5912,7 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 
 #if !defined( DMAP )
 
-#if 0
+#if 1
 
 #include "../../libs/ispc_texcomp/ispc_texcomp.h"
 
@@ -5922,28 +5922,42 @@ ConvertR11G11B10ToFP16
 Konvertiert einen 4x4-Block von R11G11B10 nach FP16
 ========================
 */
-static void ConvertR11G11B10ToFP16( const byte* inBuf, int width, halfFloat_t* fp16Buf, int blockX, int blockY )
+static void ConvertR11G11B10ToFP16( const byte* inBuf, int width, int height, halfFloat_t* fp16Buf, int blockX, int blockY )
 {
+	typedef union
+	{
+		uint32	i;
+		byte	b[4];
+	} convert_t;
+
 	for( int y = 0; y < 4; ++y )
 	{
 		for( int x = 0; x < 4; ++x )
 		{
 			int pixelX = blockX * 4 + x;
 			int pixelY = blockY * 4 + y;
-			if( pixelX >= width || pixelY >= width )
+			if( pixelX >= width || pixelY >= height )
 			{
 				continue;    // Randbehandlung
 			}
 
 			const byte* pixel = inBuf + ( pixelY * width + pixelX ) * 4;
-			uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
+
+			convert_t p;
+			p.b[0] = pixel[0];
+			p.b[1] = pixel[1];
+			p.b[2] = pixel[2];
+			p.b[3] = pixel[3];
+			uint32_t packed = p.i;
+			//uint32_t packed = ( pixel[0] << 24 ) | ( pixel[1] << 16 ) | ( pixel[2] << 8 ) | pixel[3];
 			float rgb[3];
 			r11g11b10f_to_float3( packed, rgb );
 
-			int idx = ( y * 4 + x ) * 3; // RGB, kein Alpha
+			int idx = ( y * 4 + x ) * 4;
 			fp16Buf[idx + 0] = F32toF16( rgb[0] );
 			fp16Buf[idx + 1] = F32toF16( rgb[1] );
 			fp16Buf[idx + 2] = F32toF16( rgb[2] );
+			fp16Buf[idx + 3] = F32toF16( 1.0f );
 		}
 	}
 }
@@ -5976,11 +5990,11 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 	int numBlocksY = height / 4;
 	int expectedOutputSize = numBlocksX * numBlocksY * 16; // 16 bytes per 4x4 Block
 
-	// temp FP16-Buffer for one 4x4-Block (16 Pixel x 3 channels)
+	// temp FP16-Buffer for one 4x4-Block (16 Pixel x 4 channels)
 	halfFloat_t* fp16Buf = nullptr;
 	try
 	{
-		fp16Buf = new halfFloat_t[16 * 3];
+		fp16Buf = new halfFloat_t[16 * 4];
 	}
 	catch( const std::bad_alloc& e )
 	{
@@ -5992,17 +6006,19 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 	{
 		for( int blockX = 0; blockX < numBlocksX; ++blockX )
 		{
-			ConvertR11G11B10ToFP16( inBuf, width, fp16Buf, blockX, blockY );
+			ConvertR11G11B10ToFP16( inBuf, width, height, fp16Buf, blockX, blockY );
 
 			rgba_surface surface;
 			surface.ptr = reinterpret_cast<unsigned char*>( fp16Buf );
 			surface.width = 4;
 			surface.height = 4;
-			surface.stride = 4 * 3 * sizeof( halfFloat_t ); // bytes per row
+			surface.stride = 4 * 4 * sizeof( halfFloat_t ); // bytes per row
 
 			CompressBlocksBC6H( &surface, outBuf, &settings );
 
 			outBuf += 16; // next block
+
+			common->LoadPacifierBinarizeProgressIncrement( 16 );
 		}
 		outBuf += dstPadding;
 		inBuf += srcPadding * 4; // srcPadding per row, 4 rows per block
