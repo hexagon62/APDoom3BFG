@@ -5927,8 +5927,15 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 
 #if 1
 
+#if defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON)
 #include "../../libs/ispc_texcomp/ispc_texcomp.h"
 
+/*
+========================
+ConvertR11G11B10ImageToFP16
+Converts the entire image from R11G11B10 to FP16
+========================
+*/
 static void ConvertR11G11B10ImageToFP16( const byte* inBuf, int width, int height, halfFloat_t* outBuf )
 {
 	for( int y = 0; y < height; ++y )
@@ -5959,12 +5966,11 @@ static void ConvertR11G11B10ImageToFP16( const byte* inBuf, int width, int heigh
 
 /*
 ========================
-idDxtEncoder::ConvertR11G11B10_BC6
-
+idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD
 ISPC-Variant with ISPCTextureCompressor for BC6H
 ========================
 */
-void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height )
+void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD( const byte* inBuf, byte* outBuf, int width, int height )
 {
 	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
 	{
@@ -6002,16 +6008,11 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 
 	delete[] fp16Buf;
 }
+#endif // #if defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON)
 
 #else
 
-/*
-========================
-idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2
-Compressonator-based variant for BC6H compression
-========================
-*/
-
+#if defined(USE_INTRINSICS_SSE)
 #include "../../libs/compressonator/include/compressonator.h"
 
 /*
@@ -6051,11 +6052,11 @@ static void ConvertR11G11B10ToFP32( const byte* inBuf, int width, int height, fl
 
 /*
 ========================
-idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2
+idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD
 Compressonator-based variant for BC6H compression with CMP_FORMAT_RGBA_32F, single call, multi-threaded
 ========================
 */
-void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte* outBuf, int width, int height )
+void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD( const byte* inBuf, byte* outBuf, int width, int height )
 {
 	// Validation
 	if( width < 4 || height < 4 || ( width & 3 ) != 0 || ( height & 3 ) != 0 )
@@ -6138,7 +6139,7 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SSE2( const byte* inBuf, byte*
 
 	delete[] fp32Buf;
 }
-
+#endif // #if defined(USE_INTRINSICS_SSE)
 
 #endif
 
