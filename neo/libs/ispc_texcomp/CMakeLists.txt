@@ -19,26 +19,39 @@ set(SOURCES
 
 # ISPC file
 set(ISPC_SOURCE kernel.ispc)
-set(ISPC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/kernel_ispc.h)
-
-# ISPC compilation command
-# Target for x86_64 (can be adjusted for other architectures)
+set(ISPC_HEADER ${CMAKE_CURRENT_BINARY_DIR}/kernel_ispc.h)
 
 if (MSVC)
-    set(ISPC_OBJ ${CMAKE_CURRENT_SOURCE_DIR}/kernel.obj)
+    set(ISPC_OBJ ${CMAKE_CURRENT_BINARY_DIR}/kernel.obj)
+else()
+    set(ISPC_OBJ ${CMAKE_CURRENT_BINARY_DIR}/kernel.o)
+endif()
 
+# ISPC compilation command
+# Target for x86_64
+if (USE_INTRINSICS_SSE)
     add_custom_command(
         OUTPUT ${ISPC_OBJ} ${ISPC_HEADER}
         COMMAND ${ISPC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${ISPC_SOURCE}
                 -o ${ISPC_OBJ}
                 -h ${ISPC_HEADER}
-                --target=avx2-i32x8 --arch=x86-64
+                --target=avx2-i32x8 --arch=x86-64 --pic
+        DEPENDS ${ISPC_SOURCE}
+        COMMENT "Compiling ISPC file ${ISPC_SOURCE}"
+    )
+# Target for arm64
+elseif (USE_INTRINSICS_NEON)
+    add_custom_command(
+        OUTPUT ${ISPC_OBJ} ${ISPC_HEADER}
+        COMMAND ${ISPC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${ISPC_SOURCE}
+                -o ${ISPC_OBJ}
+                -h ${ISPC_HEADER}
+                --target=neon-i32x8 --arch=aarch64 --pic
         DEPENDS ${ISPC_SOURCE}
         COMMENT "Compiling ISPC file ${ISPC_SOURCE}"
     )
 else()
-    # TODO: Add support for other platforms (e.g., ARM, AArch64)
-    message(FATAL_ERROR "ISPC compilation for non-MSVC platforms is not yet implemented.")
+    message(FATAL_ERROR "ISPC compilation not implemented for non-x86_64 and non-arm64 platforms.")
 endif()
 
 # Create a static library
