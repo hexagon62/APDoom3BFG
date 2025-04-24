@@ -25,6 +25,7 @@ if (MSVC)
     set(ISPC_OBJ ${CMAKE_CURRENT_BINARY_DIR}/kernel.obj)
 else()
     set(ISPC_OBJ ${CMAKE_CURRENT_BINARY_DIR}/kernel.o)
+    set(ISPC_PIC --pic)
 endif()
 
 # ISPC compilation command
@@ -35,7 +36,7 @@ if (USE_INTRINSICS_SSE)
         COMMAND ${ISPC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${ISPC_SOURCE}
                 -o ${ISPC_OBJ}
                 -h ${ISPC_HEADER}
-                --target=avx2-i32x8 --arch=x86-64 --pic
+                --target=avx2-i32x8 --arch=x86-64 ${ISPC_PIC}
         DEPENDS ${ISPC_SOURCE}
         COMMENT "Compiling ISPC file ${ISPC_SOURCE}"
     )
