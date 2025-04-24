@@ -35,7 +35,7 @@ if (USE_INTRINSICS_SSE)
         COMMAND ${ISPC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${ISPC_SOURCE}
                 -o ${ISPC_OBJ}
                 -h ${ISPC_HEADER}
-                --target=avx2-i32x8 --arch=x86-64
+                --target=avx2-i32x8 --arch=x86-64 --pic
         DEPENDS ${ISPC_SOURCE}
         COMMENT "Compiling ISPC file ${ISPC_SOURCE}"
     )
@@ -46,7 +46,7 @@ elseif (USE_INTRINSICS_NEON)
         COMMAND ${ISPC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${ISPC_SOURCE}
                 -o ${ISPC_OBJ}
                 -h ${ISPC_HEADER}
-                --target=neon-i32x8 --arch=aarch64
+                --target=neon-i32x8 --arch=aarch64 --pic
         DEPENDS ${ISPC_SOURCE}
         COMMENT "Compiling ISPC file ${ISPC_SOURCE}"
     )
