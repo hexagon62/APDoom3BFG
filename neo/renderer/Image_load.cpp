@@ -3,7 +3,7 @@
 
 Doom 3 BFG Edition GPL Source Code
 Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company.
-Copyright (C) 2013-2024 Robert Beckebans
+Copyright (C) 2013-2025 Robert Beckebans
 Copyright (C) 2014-2016 Kot in Action Creative Artel
 Copyright (C) 2016-2017 Dustin Land
 Copyright (C) 2022 Stephen Pridham
@@ -84,6 +84,8 @@ int BitsForFormat( textureFormat_t format )
 			return 32;
 		case FMT_BC6H:
 			return 8;
+		case FMT_BC7:
+			return 8;
 		// RB end
 		case FMT_DEPTH:
 			return 32;
@@ -113,6 +115,8 @@ int BlockSizeForFormat( const textureFormat_t& format )
 			return 16;
 		case FMT_BC6H:
 			return 16;
+		case FMT_BC7:
+			return 16;
 		default:
 			return 1;
 	}
@@ -126,7 +130,7 @@ Returns the row bytes for the given image.
 */
 int GetRowPitch( const textureFormat_t& format, int width )
 {
-	bool bc = ( format == FMT_DXT1 || format == FMT_DXT5 || format == FMT_BC6H );
+	bool bc = ( format == FMT_DXT1 || format == FMT_DXT5 || format == FMT_BC6H || format == FMT_BC7 );
 
 	if( bc )
 	{
@@ -671,7 +675,7 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 			&& ( header.colorFormat == opts.colorFormat )
 			// SRS: handle case when image read is cached and RGB565 format conversion is already done
 			// RB: allow R11G11B10 instead of BC6
-			&& ( header.format == opts.format || ( header.format == FMT_RGB565 && opts.format == FMT_RGBA8 ) || ( header.format == FMT_R11G11B10F && opts.format == FMT_BC6H ) )
+			&& ( header.format == opts.format || ( header.format == FMT_RGBA8 && opts.format == FMT_RGB565 ) || ( header.format == FMT_R11G11B10F && opts.format == FMT_BC6H ) )
 			&& ( header.textureType == opts.textureType )
 																							) )
 	{
@@ -679,17 +683,8 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 		opts.height = header.height;
 		opts.numLevels = header.numLevels;
 		opts.colorFormat = ( textureColor_t )header.colorFormat;
-
-		// SRS - Set in-memory format to FMT_RGBA8 for converted FMT_RGB565 image
-		if( header.format == FMT_RGB565 )
-		{
-			opts.format = FMT_RGBA8;
-		}
-		else
-		{
-			opts.format = ( textureFormat_t )header.format;
-		}
-
+		opts.format = ( textureFormat_t )header.format;
+		opts.format = ( textureFormat_t )header.format;
 		opts.textureType = ( textureType_t )header.textureType;
 
 		if( cvarSystem->GetCVarBool( "fs_buildresources" ) )

@@ -379,7 +379,7 @@ public:
 
 	bool		IsCompressed() const
 	{
-		return ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 || opts.format == FMT_BC6H );
+		return ( opts.format == FMT_DXT1 || opts.format == FMT_DXT5 || opts.format == FMT_BC6H || opts.format == FMT_BC7 );
 	}
 
 	textureUsage_t GetUsage() const

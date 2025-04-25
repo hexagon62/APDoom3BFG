@@ -110,7 +110,7 @@ void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_con
 		byte* dxtPic = pic;
 		int	dxtWidth = 0;
 		int	dxtHeight = 0;
-		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H )
+		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H || textureFormat == FMT_BC7 )
 		{
 			if( ( scaledWidth & 3 ) || ( scaledHeight & 3 ) )
 			{
@@ -449,7 +449,7 @@ void idBinaryImage::Load2DAtlasMipchainFromMemory( int width, int height, const 
 		byte* dxtPic = pic;
 		int	dxtWidth = 0;
 		int	dxtHeight = 0;
-		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H )
+		if( textureFormat == FMT_DXT5 || textureFormat == FMT_DXT1 || textureFormat == FMT_BC6H || textureFormat == FMT_BC7 )
 		{
 			if( ( scaledWidth & 3 ) || ( scaledHeight & 3 ) )
 			{
@@ -706,7 +706,7 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 			int		padSize;
 			const byte* padSrc;
 
-			if( scaledWidth < 4 && ( textureFormat == FMT_DXT1 || textureFormat == FMT_DXT5 || textureFormat == FMT_BC6H ) )
+			if( scaledWidth < 4 && ( textureFormat == FMT_DXT1 || textureFormat == FMT_DXT5 || textureFormat == FMT_BC6H || textureFormat == FMT_BC7 ) )
 			{
 				PadImageTo4x4( pic, scaledWidth, scaledWidth, padBlock );
 				padSize = 4;
@@ -944,6 +944,8 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 
 	images.SetNum( numImages );
 
+	int finalFormat = fileData.format;
+
 	for( int i = 0; i < numImages; i++ )
 	{
 		idBinaryImageData& img = images[ i ];
@@ -974,8 +976,8 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 		{
 			img.Alloc( img.dataSize * 2 );
 		}
-		// SRS - For compressed formats, match allocation to what nvrhi expects for the texture's mip variants
-		else if( ( textureFormat_t )fileData.format == FMT_DXT1 || ( textureFormat_t )fileData.format == FMT_DXT5 || ( textureFormat_t )fileData.format == FMT_BC6H )
+		// SRS - For compressed formats, match allocation to what NVRHI expects for the texture's mip variants
+		else if( ( textureFormat_t )fileData.format == FMT_DXT1 || ( textureFormat_t )fileData.format == FMT_DXT5 || ( textureFormat_t )fileData.format == FMT_BC6H || ( textureFormat_t )fileData.format == FMT_BC7 )
 		{
 			int rowPitch = GetRowPitch( ( textureFormat_t )fileData.format, img.width );
 			int mipRows = ( ( ( ( fileData.height + 3 ) & ~3 ) >> img.level ) + 3 ) / 4;
@@ -985,6 +987,7 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 		{
 			img.Alloc( img.dataSize );
 		}
+
 		if( img.data == NULL )
 		{
 			return false;
@@ -1019,6 +1022,8 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 #endif
 				img.data[pixelIndex * 2 + 3] = 0xFF;
 			}
+
+			finalFormat = FMT_RGBA8;
 		}
 #else
 		img.Alloc( img.dataSize );
@@ -1033,6 +1038,8 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 		}
 #endif
 	}
+
+	fileData.format = finalFormat;
 
 	return true;
 }
