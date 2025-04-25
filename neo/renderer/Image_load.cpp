@@ -194,7 +194,7 @@ ID_INLINE void idImage::DeriveOpts()
 				opts.format = FMT_R8;
 				break;
 
-			case TD_R11G11B10F:
+			case TD_HDR_LIGHTPROBE:
 				opts.format = FMT_BC6H;
 				break;
 

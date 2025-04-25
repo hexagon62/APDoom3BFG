@@ -232,7 +232,7 @@ typedef enum
 	TD_RGBA16F,				// RT = render target format only, not written to disk
 	TD_RGBA16S,				// RT only
 	TD_RGBA32F,				// RT only
-	TD_R11G11B10F,			// memory efficient HDR RGB format with only 32bpp
+	TD_HDR_LIGHTPROBE,		// RB: 2D HDR octahedron probes stored as R11G11B10F in v1.3 - v1.5 and BC6 now
 	// ^-- used up until RBDOOM-3-BFG 1.3
 	TD_HDRI,				// RB: R11G11B10F or BC6
 	// RB end
