@@ -381,7 +381,7 @@ void idImage::AllocImage()
 			format = nvrhi::Format::R8_UNORM;
 			break;
 
-		case FMT_R8:
+		case FMT_R8F:
 			format = nvrhi::Format::R8_UNORM;
 			break;
 
@@ -452,10 +452,6 @@ void idImage::AllocImage()
 		// see http://what-when-how.com/Tutorial/topic-615ll9ug/Praise-for-OpenGL-ES-30-Programming-Guide-291.html
 		case FMT_R11G11B10F:
 			format = nvrhi::Format::R11G11B10_FLOAT;
-			break;
-
-		case FMT_SRGB8:
-			format = nvrhi::Format::SRGBA8_UNORM;
 			break;
 
 		default:

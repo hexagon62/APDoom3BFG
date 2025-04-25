@@ -105,15 +105,21 @@ enum textureFormat_t
 	FMT_RGBA32F,		// 128 bpp
 	FMT_R32F,			// 32 bpp
 	FMT_R11G11B10F,		// 32 bpp
-	// ^-- used up until RBDOOM-3-BFG 1.3 == BIMAGE_VERSION_BFG
+
+	// ^-- used up until RBDOOM-3-BFG 1.5 == BIMAGE_VERSION_BFG
 
 	FMT_BC6H,			// 8 bpp
-	// ^-- used up until RBDOOM-3-BFG 1.6 >= BIMAGE_VERSION_BC6
+	FMT_BC7,			// 8 bpp
 
-	FMT_R8,
-	FMT_DEPTH_STENCIL,  // 32 bpp
-	FMT_RGBA16S,		// 64 bpp
-	FMT_SRGB8,
+	// ^-- introduced with RBDOOM-3-BFG 1.6 >= BIMAGE_VERSION_BC6
+
+	//------------------------
+	// Render targets only
+	//------------------------
+
+	FMT_R8F,			// 8 bpp, RT only
+	FMT_DEPTH_STENCIL,  // 32 bpp, RT only
+	FMT_RGBA16S,		// 64 bpp, RT only
 };
 
 int BitsForFormat( textureFormat_t format );
@@ -233,7 +239,7 @@ typedef enum
 	TD_RGBA16S,				// RT only
 	TD_RGBA32F,				// RT only
 	TD_HDR_LIGHTPROBE,		// RB: 2D HDR octahedron probes stored as R11G11B10F in v1.3 - v1.5 and BC6 now
-	// ^-- used up until RBDOOM-3-BFG 1.3
+	// ^-- used up until RBDOOM-3-BFG 1.5
 	TD_HDRI,				// RB: R11G11B10F or BC6
 	// RB end
 	TD_R32F,				// RT only

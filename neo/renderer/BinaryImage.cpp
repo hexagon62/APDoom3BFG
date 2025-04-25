@@ -960,12 +960,15 @@ bool idBinaryImage::LoadFromGeneratedFile( idFile* bFile, ID_TIME_T sourceTimeSt
 		assert( img.level >= 0 && img.level < fileData.numLevels );
 		assert( img.destZ == 0 || fileData.textureType == DTT_CUBIC );
 		assert( img.dataSize > 0 );
+
 		// DXT images need to be padded to 4x4 block sizes, but the original image
 		// sizes are still retained, so the stored data size may be larger than
 		// just the multiplication of dimensions
 		assert( img.dataSize >= img.width * img.height * BitsForFormat( ( textureFormat_t )fileData.format ) / 8 );
+
 #if ( defined( __APPLE__ ) && defined( USE_VULKAN ) ) || defined( USE_NVRHI )
 		int imgfile_dataSize = img.dataSize;
+
 		// SRS - Allocate 2x memory to prepare for in-place conversion from FMT_RGB565 to FMT_RGBA8
 		if( ( textureFormat_t )fileData.format == FMT_RGB565 )
 		{

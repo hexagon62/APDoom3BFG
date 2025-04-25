@@ -93,7 +93,7 @@ int BitsForFormat( textureFormat_t format )
 			return 16;
 		case FMT_Y16_X16:
 			return 32;
-		case FMT_R8:
+		case FMT_R8F:
 			return 4;
 		default:
 			assert( 0 );
@@ -191,7 +191,7 @@ ID_INLINE void idImage::DeriveOpts()
 				break;
 
 			case TD_R8F:
-				opts.format = FMT_R8;
+				opts.format = FMT_R8F;
 				break;
 
 			case TD_HDR_LIGHTPROBE:
@@ -1110,14 +1110,15 @@ void idImage::Print() const
 			NAME_FORMAT( RGBA16F );
 			NAME_FORMAT( RGBA32F );
 			NAME_FORMAT( R32F );
-			NAME_FORMAT( R8 );
+			NAME_FORMAT( R8F );
 			NAME_FORMAT( R11G11B10F );
+			NAME_FORMAT( BC6H );
+			NAME_FORMAT( BC7 );
 			// RB end
 			NAME_FORMAT( DEPTH );
 			NAME_FORMAT( DEPTH_STENCIL );
 			NAME_FORMAT( X16 );
 			NAME_FORMAT( Y16_X16 );
-			NAME_FORMAT( SRGB8 );
 		default:
 			common->Printf( "<%3i>", opts.format );
 			break;
