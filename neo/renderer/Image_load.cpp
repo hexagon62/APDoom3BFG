@@ -914,7 +914,10 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 
 void idImage::DeferredLoadImage()
 {
-	globalImages->imagesToLoad.AddUnique( this );
+	if( !globalImages->cacheImages )
+	{
+		globalImages->imagesToLoad.AddUnique( this );
+	}
 }
 
 void idImage::DeferredPurgeImage()

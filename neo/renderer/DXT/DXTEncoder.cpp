@@ -6111,6 +6111,7 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD( const byte* inBuf, byte*
 	options.dwSize = sizeof( CMP_CompressOptions );
 	options.fquality = 0.5f; // Medium quality for speed (0.0 to 1.0)
 	options.dwnumThreads = 0; // 0 = auto-detect number of threads based on CPU cores
+	options.nEncodeWith = CMP_GPU_OCL;
 
 	// Execute compression (single call)
 	CMP_ERROR cmp_status = CMP_ConvertTexture( &srcTexture, &destTexture, &options, nullptr );
