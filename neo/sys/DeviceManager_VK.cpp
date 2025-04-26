@@ -1318,16 +1318,16 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
 	// SRS - Get function pointer for retrieving MoltenVK advanced performance statistics in DeviceManager_VK::BeginFrame()
 	vkGetPerformanceStatisticsMVK = ( PFN_vkGetPerformanceStatisticsMVK )vkGetInstanceProcAddr( m_VulkanInstance, "vkGetPerformanceStatisticsMVK" );
 
-#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
-	// SRS - Initialize Optick event storage and descriptions for MoltenVK events
-	mvkAcquireEventStorage = Optick::RegisterStorage( "Mvk_ImageAcquire", uint64_t( -1 ), Optick::ThreadMask::Main );
-	mvkSubmitEventStorage = Optick::RegisterStorage( "Mvk_CmdBufSubmit", uint64_t( -1 ), Optick::ThreadMask::Main );
-	mvkEncodeEventStorage = Optick::RegisterStorage( "Mvk_EncodeThread", uint64_t( -1 ), Optick::ThreadMask::GPU );
-	mvkAcquireEventDesc = Optick::EventDescription::CreateShared( "Acquire_Wait" );
-	mvkSubmitEventDesc = Optick::EventDescription::CreateShared( "Submit_Wait" );
-	mvkEncodeEventDesc = Optick::EventDescription::CreateShared( "Metal_Encode" );
-	Optick::SetStateChangedCallback( ( Optick::StateCallback )optickStateChangedCallback );
-#endif
+	#if MVK_VERSION >= MVK_MAKE_VERSION( 1, 2, 9 ) && USE_OPTICK
+		// SRS - Initialize Optick event storage and descriptions for MoltenVK events
+		mvkAcquireEventStorage = Optick::RegisterStorage( "Mvk_ImageAcquire", uint64_t( -1 ), Optick::ThreadMask::Main );
+		mvkSubmitEventStorage = Optick::RegisterStorage( "Mvk_CmdBufSubmit", uint64_t( -1 ), Optick::ThreadMask::Main );
+		mvkEncodeEventStorage = Optick::RegisterStorage( "Mvk_EncodeThread", uint64_t( -1 ), Optick::ThreadMask::GPU );
+		mvkAcquireEventDesc = Optick::EventDescription::CreateShared( "Acquire_Wait" );
+		mvkSubmitEventDesc = Optick::EventDescription::CreateShared( "Submit_Wait" );
+		mvkEncodeEventDesc = Optick::EventDescription::CreateShared( "Metal_Encode" );
+		Optick::SetStateChangedCallback( ( Optick::StateCallback )optickStateChangedCallback );
+	#endif
 #endif
 
 	CHECK( createDevice() );

@@ -24,9 +24,8 @@ cp build/tools/compilers/release/rbdmap.exe .
     base/script/*.script base/textures/common base/textures/editor \
     base/maps/zoomaps -x!generated -xr!autosave -xr!*.xcf -xr!*.blend
 
-7z a "$filename" base/maps/game/*_extra_ents.map
-7z a "$filename" -r base/renderprogs2/dxil/*.bin
-7z a "$filename" -r base/renderprogs2/spirv/*.bin
+#7z a "$filename" base/maps/game/*_extra_ents.map
+7z a "$filename" base/renderprogs2/
 7z a "$filename" base/_tb/fgd/*.fgd
 7z a "$filename" base/_tb/ -xr!*.png -xr!*.tga
 7z a "$filename" base/_bl/*.json
