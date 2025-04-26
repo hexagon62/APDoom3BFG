@@ -5783,8 +5783,6 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_Generic( const byte* inBuf, by
 
 
 
-#if !defined( DMAP )
-
 #if 1
 
 #if defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON)
@@ -6003,8 +6001,6 @@ void idDxtEncoder::CompressImageR11G11B10_BC6Fast_SIMD( const byte* inBuf, byte*
 #endif // #if defined(USE_INTRINSICS_SSE)
 
 #endif
-
-#endif // #if !defined( DMAP )
 
 void idDxtEncoder::CompressImageR11G11B10_BC6HQ( const byte* inBuf, byte* outBuf, int width, int height )
 {

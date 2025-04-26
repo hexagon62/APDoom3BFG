@@ -111,7 +111,7 @@ public:
 	}
 
 
-#if ( defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON) ) && !defined( DMAP )
+#if ( defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON) )
 	void	CompressImageR11G11B10_BC6Fast_SIMD( const byte* inBuf, byte* outBuf, int width, int height );
 #endif
 	// RB end
@@ -382,7 +382,7 @@ idDxtEncoder::CompressImageDXT5Fast
 */
 ID_INLINE void idDxtEncoder::CompressImageR11G11B10_BC6Fast( const byte* inBuf, byte* outBuf, int width, int height )
 {
-#if ( defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON) ) && !defined( DMAP )
+#if ( defined(USE_INTRINSICS_SSE) || defined(USE_INTRINSICS_NEON) )
 	CompressImageR11G11B10_BC6Fast_SIMD( inBuf, outBuf, width, height );
 #else
 	CompressImageR11G11B10_BC6Fast_Generic( inBuf, outBuf, width, height );

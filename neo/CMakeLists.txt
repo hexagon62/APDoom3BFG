@@ -437,12 +437,6 @@ endif()
 
 add_subdirectory(idlib)
 
-# RB: there haven't been requests for a separate map compiler executable by macOS users
-# and it is ok to not support it until someone also supports TrenchBroomBFG on macOS
-if(NOT APPLE AND NOT FLATPAK)
-	add_subdirectory(tools/compilers)
-endif()
-
 if(USE_INTRINSICS_SSE)
 	add_subdirectory(libs/moc)
 	set(MASKED_OCCLUSION_LIBRARY MaskedOcclusionCulling)
@@ -454,6 +448,12 @@ if(USE_INTRINSICS_SSE OR USE_INTRINSICS_NEON)
 
 	#set(ISPC_TEXCOMP_LIBRARY Compressonator_MD)
 	#link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/compressonator/lib)
+endif()
+
+# RB: there haven't been requests for a separate map compiler executable by macOS users
+# and it is ok to not support it until someone also supports TrenchBroomBFG on macOS
+if(NOT APPLE AND NOT FLATPAK)
+	add_subdirectory(tools/compilers)
 endif()
 
 file(GLOB NATVIS_SOURCES .natvis)
