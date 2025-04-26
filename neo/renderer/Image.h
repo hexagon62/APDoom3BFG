@@ -232,7 +232,7 @@ typedef enum
 	TD_SPECULAR_PBR_RMAO,	// may be compressed, and always zeros the alpha channel, linear RGB R = roughness, G = metal, B = ambient occlusion
 	TD_SPECULAR_PBR_RMAOD,	// may be compressed, alpha channel contains displacement map
 	TD_HIGHQUALITY_CUBE,	// motorsep - Uncompressed cubemap texture (RGB colorspace)
-	TD_LOWQUALITY_CUBE,		// motorsep - Compressed cubemap texture (RGB colorspace DXT5)
+	TD_LOWQUALITY_CUBE,		// motorsep - REMOVED
 	TD_SHADOW_ARRAY,		// 2D depth buffer array for shadow mapping
 	TD_RG16F,				// BRDF lookup table
 	TD_RGBA16F,				// RT = render target format only, not written to disk

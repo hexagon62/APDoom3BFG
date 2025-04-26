@@ -160,48 +160,6 @@ ID_INLINE void idImage::DeriveOpts()
 				opts.colorFormat = CFM_GREEN_ALPHA;
 				break;
 
-			case TD_DEPTH:
-				opts.format = FMT_DEPTH;
-				break;
-
-			// SP begin
-			case TD_DEPTH_STENCIL:
-				opts.format = FMT_DEPTH_STENCIL;
-				break;
-			// SP end
-
-			case TD_SHADOW_ARRAY:
-				opts.format = FMT_SHADOW_ARRAY;
-				break;
-
-			case TD_RG16F:
-				opts.format = FMT_RG16F;
-				break;
-
-			case TD_RGBA16F:
-				opts.format = FMT_RGBA16F;
-				break;
-
-			case TD_RGBA16S:
-				opts.format = FMT_RGBA16S;
-				break;
-
-			case TD_RGBA32F:
-				opts.format = FMT_RGBA32F;
-				break;
-
-			case TD_R32F:
-				opts.format = FMT_R32F;
-				break;
-
-			case TD_R8F:
-				opts.format = FMT_R8F;
-				break;
-
-			case TD_HDR_LIGHTPROBE:
-				opts.format = FMT_BC6H;
-				break;
-
 			case TD_DIFFUSE:
 				// TD_DIFFUSE gets only set to when its a diffuse texture for an interaction
 				opts.gammaMips = true;
@@ -249,7 +207,11 @@ ID_INLINE void idImage::DeriveOpts()
 				// RB: TODO check binary format version
 				// D3 BFG assets require RGB565 but it introduces color banding
 				// mods would prefer FMT_RGBA8
-				opts.format = FMT_RGB565; //FMT_RGBA8;
+#if defined(STANDALONE)
+				opts.format = FMT_RGBA8;
+#else
+				opts.format = FMT_RGB565;
+#endif
 				opts.gammaMips = true;
 				break;
 
@@ -266,22 +228,61 @@ ID_INLINE void idImage::DeriveOpts()
 				opts.format = FMT_RGBA8;
 				break;
 
+			case TD_HDR_LIGHTPROBE:
+				opts.format = FMT_BC6H;
+				break;
+
+			case TD_HDRI:
+				opts.format = FMT_BC6H;
+				//opts.numLevels = 1;
+				break;
+
 			// motorsep 05-17-2015; added this for uncompressed cubemap/skybox textures
 			case TD_HIGHQUALITY_CUBE:
 				opts.colorFormat = CFM_DEFAULT;
 				opts.format = FMT_RGBA8;
 				opts.gammaMips = true;
 				break;
-			case TD_LOWQUALITY_CUBE:
-				opts.colorFormat = CFM_DEFAULT; // CFM_YCOCG_DXT5;
-				opts.format = FMT_DXT5;
-				opts.gammaMips = true;
-				break;
-			// motorsep end
 
-			case TD_HDRI:
-				opts.format = FMT_BC6H;
-				//opts.numLevels = 1;
+
+			//------------------------
+			// Render targets only
+			//------------------------
+
+			case TD_DEPTH:
+				opts.format = FMT_DEPTH;
+				break;
+
+			case TD_DEPTH_STENCIL:
+				opts.format = FMT_DEPTH_STENCIL;
+				break;
+
+			case TD_SHADOW_ARRAY:
+				opts.format = FMT_SHADOW_ARRAY;
+				break;
+
+			case TD_RG16F:
+				opts.format = FMT_RG16F;
+				break;
+
+			case TD_RGBA16F:
+				opts.format = FMT_RGBA16F;
+				break;
+
+			case TD_RGBA16S:
+				opts.format = FMT_RGBA16S;
+				break;
+
+			case TD_RGBA32F:
+				opts.format = FMT_RGBA32F;
+				break;
+
+			case TD_R32F:
+				opts.format = FMT_R32F;
+				break;
+
+			case TD_R8F:
+				opts.format = FMT_R8F;
 				break;
 
 			default:
