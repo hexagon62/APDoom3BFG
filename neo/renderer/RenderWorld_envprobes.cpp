@@ -1135,11 +1135,11 @@ CONSOLE_COMMAND_SHIP( bakeEnvironmentProbes, "Bake environment probes", NULL )
 		// generate .bimage file
 		if( job->outHeight == RADIANCE_OCTAHEDRON_SIZE )
 		{
-			globalImages->ImageFromFile( job->filename, TF_DEFAULT, TR_CLAMP, TD_R11G11B10F, CF_2D_PACKED_MIPCHAIN );
+			globalImages->ImageFromFile( job->filename, TF_DEFAULT, TR_CLAMP, TD_HDR_LIGHTPROBE, CF_2D_PACKED_MIPCHAIN );
 		}
 		else
 		{
-			globalImages->ImageFromFile( job->filename, TF_LINEAR, TR_CLAMP, TD_R11G11B10F, CF_2D_PACKED_MIPCHAIN );
+			globalImages->ImageFromFile( job->filename, TF_LINEAR, TR_CLAMP, TD_HDR_LIGHTPROBE, CF_2D_PACKED_MIPCHAIN );
 		}
 
 		Mem_Free( job->outBuffer );
@@ -1168,6 +1168,8 @@ CONSOLE_COMMAND_SHIP( bakeEnvironmentProbes, "Bake environment probes", NULL )
 		def->irradianceImage->Reload( true, commandList );
 		def->radianceImage->Reload( true, commandList );
 	}
+
+	globalImages->LoadDeferredImages( commandList );
 
 	commandList->close();
 	deviceManager->GetDevice()->executeCommandList( commandList );

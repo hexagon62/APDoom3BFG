@@ -428,13 +428,15 @@ void idRenderWorldLocal::LoadLightGridImages()
 		if( !area->lightGrid.irradianceImage )
 		{
 			filename.Format( "env/%s/area%i_lightgrid_amb", baseName.c_str(), i );
-			area->lightGrid.irradianceImage = globalImages->ImageFromFile( filename, TF_LINEAR, TR_CLAMP, TD_R11G11B10F, CF_2D );
+			area->lightGrid.irradianceImage = globalImages->ImageFromFile( filename, TF_LINEAR, TR_CLAMP, TD_HDR_LIGHTPROBE, CF_2D );
 		}
 		else
 		{
 			area->lightGrid.irradianceImage->Reload( true, commandList );
 		}
 	}
+
+	globalImages->LoadDeferredImages( commandList );
 
 	commandList->close();
 	deviceManager->GetDevice()->executeCommandList( commandList );

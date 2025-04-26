@@ -420,10 +420,12 @@ Existing repositories can be updated manually:
 3. Download and install the latest Vulkan SDK from LunarG: https://www.lunarg.com/vulkan-sdk/
 You can skip this step if you compile with DX12 only by adding -DUSE_VULKAN=OFF to the CMake options.
 
-4. Generate the VS2022 projects using CMake by doubleclicking a matching configuration .bat file in the `DoomCode/neo/` folder.
+4. Download ISPC from https://github.com/ispc/ispc/releases and unpack the binary to `DoomCode/tools/ispc/bin/ispc.exe`
+
+5. Generate the VS2022 projects using CMake by doubleclicking a matching configuration .bat file in the `DoomCode/neo/` folder.
 Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
-5. Use the VS2022 solution to compile what you need:
+6. Use the VS2022 solution to compile what you need:
 	`DoomCode/build/RBDoom3BFG.sln`
 	
 
@@ -448,18 +450,19 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 	On Debian or Ubuntu:
 
 		> sudo apt install cmake libsdl2-dev libopenal-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libvulkan-dev libncurses-dev
+		> sudo snap install ispc
 	
 	On Fedora
 		
-		> sudo dnf install cmake clang SDL2-devel openal-devel compat-ffmpeg4-devel ncurses-devel vulkan-devel
+		> sudo dnf install cmake clang ispc SDL2-devel openal-devel compat-ffmpeg4-devel ncurses-devel vulkan-devel
 	
 	On ArchLinux 
 	
-		> sudo pacman -S sdl2 cmake openal ffmpeg
+		> sudo pacman -S sdl2 cmake ispc openal ffmpeg
 
 	On openSUSE
 	
-		> sudo zypper install cmake libSDL2-devel openal-soft-devel
+		> sudo zypper install cmake ispc libSDL2-devel openal-soft-devel
 
 	You don't need FFmpeg to be installed. You can turn it off by adding -DFFMPEG=OFF and -DBINKDEC=ON to the CMake options. It is enabled by default because the bundled libbinkdec is slow during development if compiled for Debug mode.
 
@@ -495,9 +498,9 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 2.	You need the following dependencies in order to compile RBDoom3BFG with all features:
 
-		> brew install cmake sdl2 openal-soft ffmpeg (for single arch libraries only)
+		> brew install cmake ispc sdl2 openal-soft ffmpeg (for single arch libraries only)
 		or
-		> sudo port install cmake libsdl2 +universal openal-soft +universal (for universal arch libraries)
+		> sudo port install cmake ispc libsdl2 +universal openal-soft +universal (for universal arch libraries)
 		
 	You don't need FFmpeg to be installed. You can turn it off by adding -DFFMPEG=OFF and -DBINKDEC=ON to the CMake options. For debug builds FFmpeg is enabled by default because the bundled libbinkdec is slow during development if compiled for Debug mode.  For release, retail and universal builds FFmpeg is disabled and libbinkdec is enabled by default.
 	
