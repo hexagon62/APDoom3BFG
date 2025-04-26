@@ -13,6 +13,68 @@ RBDOOM-3-BFG Release Notes - https://github.com/RobertBeckebans/RBDOOM-3-BFG
 Thank you for downloading RBDOOM-3-BFG.
 
 
+## .plan - April 26, 2025
+
+This test build ships with freshly baked environment probes that hide the monsters for the blood reflections.
+Also all .exr files have been cached to .bimage using the BC6 HDR format using the Intel ISPC Texture Compressor.
+The new data is stored in base/_rbdoom_global_illumination_data.pk4.
+
+Thanks to Steve Saunders who contributed many smaller bugfixes.
+Klaus Silveira also contributed a bugfix that alerts monsters and NPCs when you shoot in a near area.
+
+This is not a patch but a new full release test candidate.
+
+For testing:
+```
+1. Make a new DoomBFG folder
+
+2. Copy base/ from your Steam Doom 3 BFG folder into DoomBFG
+
+3. Unpack this archive over DoomBFG
+```
+
+Changelog:
+
+* Fixed texture reloading when calling bakeEnvironmentProbes/bakeLightGrids
+
+* Fall back to R11G11B10 for HDR data in .bimage if no SIMD is available
+
+* Extended .bimage format with BC6 to compress HDR light data
+
+* Add cvar r_mvkUseMetalHeap to control MoltenVK's MTLHeap option
+
+* Simplify MoltenVK config and remove deprecated code by requiring SDK >= 1.3.275
+
+* Disable MoltenVK's warning messages (e.g. primitive restart) for macOS release builds
+
+* Disable MoltenVK's MTLHeap feature if VMA is enabled for GPU memory allocations
+
+* Added CMake FLATPAK option to exclude rbdmap from Flatpak builds
+
+* exportScriptEvents also exports a Mermaid class diagram
+
+* Fixed AI not being alerted. Fixes bug where NPCs did not cower when the player shot near them. (Thanks Klaus Silveira)
+
+* Fix memory deallocation issue by using delete[] for arrays
+
+* Always update current binding sets if binding layout has changed (Crashfix)
+
+* Make Cinematic Audio playback respect the s_noSound cVar setting
+
+* Fix s_noSound logic so it be turned off and on without OpenAL errors or crashes
+
+* Use ffmpeg for linux/macOS debug builds, suppress AUHAL console spam on macOS release builds
+
+* Restore Doom Classic Frame Rate (35 Hz) following background slowdown change
+
+* Fix Cinematic Audio OpenAL error handling and Classic Doom OpenAL API mistakes
+
+* Fix Dynamic Loader namespace change in Vulkan SDK >= 1.4.304.0
+
+* Outcommented some SDL events so it still compiles on Ubuntu 23.10
+
+
+
 _______________________________________
 
 TBD - RBDOOM-3-BFG 1.6.0
