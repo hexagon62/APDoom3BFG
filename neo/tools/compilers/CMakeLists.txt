@@ -285,7 +285,7 @@ if(MSVC)
 
     add_executable(rbdmap ${MC_SOURCES_ALL} ${MC_INCLUDES_ALL})
 	add_dependencies(rbdmap idlib  ${ISPC_TEXCOMP_LIBRARY})
-	target_link_libraries(rbdmap idlib winmm imtui-pdcurses ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
+	target_link_libraries(rbdmap idlib winmm imtui-pdcurses Shlwapi ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
 
 	# set MSVC default debug directory on executable	
 	if(CMAKE_MAJOR_VERSION EQUAL 3 AND CMAKE_MINOR_VERSION GREATER_EQUAL 8)

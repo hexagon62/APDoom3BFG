@@ -1449,7 +1449,8 @@ if(MSVC)
 		#eaxguid
 		iphlpapi
 		winmm
-		wsock32.lib
+		wsock32
+		Shlwapi
 		${Vulkan_LIBRARIES}
 		${OpenAL_LIBRARIES}
 		${FFmpeg_LIBRARIES}
