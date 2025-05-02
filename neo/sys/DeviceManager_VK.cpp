@@ -46,9 +46,9 @@
 	#endif
 
 	// SRS - Disable MoltenVK's Synchronous Queue Submits for better performance, and Metal Argument Buffers to avoid HiZ compute shader issues on Apple Silicon
-	idCVar r_mvkSynchronousQueueSubmits( "r_mvkSynchronousQueueSubmits", "0", CVAR_BOOL | CVAR_INIT | CVAR_NEW, "Use MoltenVK's synchronous queue submit option." );
-	idCVar r_mvkUseMetalArgumentBuffers( "r_mvkUseMetalArgumentBuffers", "0", CVAR_INTEGER | CVAR_INIT | CVAR_NEW, "Use MoltenVK's Metal argument buffers option.", 0, 1 );
-	idCVar r_mvkUseMetalHeap( "r_mvkUseMetalHeap", "0", CVAR_BOOL | CVAR_INIT | CVAR_NEW, "Use MoltenVK's MTLHeap option (may conflict with VMA)." );
+	idCVar r_mvkSynchronousQueueSubmits( "r_mvkSynchronousQueueSubmits", "0", CVAR_BOOL | CVAR_INIT | CVAR_NEW, "Use MoltenVK's synchronous queue submits option." );
+	idCVar r_mvkUseMetalArgumentBuffers( "r_mvkUseMetalArgumentBuffers", "0", CVAR_BOOL | CVAR_INIT | CVAR_NEW, "Use MoltenVK's Metal argument buffers option." );
+	idCVar r_mvkUseMTLHeap( "r_mvkUseMTLHeap", "0", CVAR_INTEGER | CVAR_INIT | CVAR_NEW, "Use MoltenVK's MTLHeap option (may cause issues on AMD GPUs).", 0, 2 );
 #endif
 #include <nvrhi/validation.h>
 #include <libs/optick/optick.h>
@@ -552,7 +552,7 @@ bool DeviceManager_VK::createInstance()
 	vk::LayerSettingsCreateInfoEXT layerSettingsCreateInfo;
 
 	const vk::Bool32 valueTrue = vk::True, valueFalse = vk::False;
-	const int32_t useMetalArgumentBuffers = r_mvkUseMetalArgumentBuffers.GetInteger();
+	const int32_t useMTLHeap = r_mvkUseMTLHeap.GetInteger();
 	const float timestampPeriodLowPassAlpha = 1.0;
 	const int32_t logLevelErrorsOnly = 1; // MVK_CONFIG_LOG_LEVEL_ERROR
 
@@ -573,14 +573,14 @@ bool DeviceManager_VK::createInstance()
 
 	// SRS - Set MoltenVK's Metal argument buffer option for controlling descriptor resource scaling
 	layerSetting.pSettingName = "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS";
-	layerSetting.type = vk::LayerSettingTypeEXT::eInt32;
-	layerSetting.pValues = &useMetalArgumentBuffers;
+	layerSetting.type = vk::LayerSettingTypeEXT::eBool32;
+	layerSetting.pValues = r_mvkUseMetalArgumentBuffers.GetBool() ? &valueTrue : &valueFalse;
 	layerSettings.push_back( layerSetting );
 
-	// SRS - Set MoltenVK's MTLHeap option for GPU memory suballocations (note: may conflict with VMA)
+	// SRS - Set MoltenVK's MTLHeap option for GPU memory suballocations (may cause issues on AMD GPUs)
 	layerSetting.pSettingName = "MVK_CONFIG_USE_MTLHEAP";
-	layerSetting.type = vk::LayerSettingTypeEXT::eBool32;
-	layerSetting.pValues = r_mvkUseMetalHeap.GetBool() ? &valueTrue : &valueFalse;
+	layerSetting.type = vk::LayerSettingTypeEXT::eInt32;
+	layerSetting.pValues = &useMTLHeap;
 	layerSettings.push_back( layerSetting );
 
 	// SRS - Disable MoltenVK's timestampPeriod filter for HUD / Optick profiler timing calibration
