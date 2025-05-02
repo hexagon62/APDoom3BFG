@@ -3,7 +3,7 @@
 
 Doom 3 GPL Source Code
 Copyright (C) 1999-2011 id Software LLC, a ZeniMax Media company.
-Copyright (C) 2013-2021 Robert Beckebans
+Copyright (C) 2013-2025 Robert Beckebans
 Copyright (C) 2022 Stephen Pridham
 
 This file is part of the Doom 3 GPL Source Code (?Doom 3 Source Code?).
@@ -1049,6 +1049,9 @@ CONSOLE_COMMAND_SHIP( bakeLightGrids, "Bake irradiance/vis light grid data", NUL
 	int bounces = 1;
 	idVec3 gridSize = defaultLightGridSize;
 
+	bool useThreads = true;
+	int numThreads = JOBLIST_PARALLELISM_MAX_CORES;
+
 	bool helpRequested = false;
 	idStr option;
 
@@ -1088,6 +1091,16 @@ CONSOLE_COMMAND_SHIP( bakeLightGrids, "Bake irradiance/vis light grid data", NUL
 				continue;
 			}
 		}
+		else if( option.IcmpPrefix( "mt" ) == 0 )
+		{
+			option.StripLeading( "mt" );
+			int threads = atoi( option );
+			if( threads > 0 )
+			{
+				int maxCores = parallelJobManager->GetLogicalCpuCores();
+				numThreads = idMath::ClampInt( 1, maxCores, threads );
+			}
+		}
 		else if( option.Icmp( "h" ) == 0 || option.Icmp( "help" ) == 0 )
 		{
 			helpRequested = true;
@@ -1102,7 +1115,7 @@ CONSOLE_COMMAND_SHIP( bakeLightGrids, "Bake irradiance/vis light grid data", NUL
 		idLib::Printf( " limit[num] : max probes per BSP area (default %i)\n", MAX_AREA_LIGHTGRID_POINTS );
 		idLib::Printf( " bounce[num] : number of bounces or number of light reuse (default 1)\n" );
 		idLib::Printf( " grid( xdim ydim zdim ) : light grid size steps into each direction (default 64 64 128)\n" );
-
+		idLib::Printf( " mt[num] : number of threads used for baking (default max logical cores)\n" );
 		return;
 	}
 
@@ -1120,8 +1133,6 @@ CONSOLE_COMMAND_SHIP( bakeLightGrids, "Bake irradiance/vis light grid data", NUL
 
 	int sysWidth = renderSystem->GetWidth();
 	int sysHeight = renderSystem->GetHeight();
-
-	bool useThreads = true;
 
 	baseName = tr.primaryWorld->mapName;
 	baseName.StripFileExtension();
@@ -1365,7 +1376,7 @@ CONSOLE_COMMAND_SHIP( bakeLightGrids, "Bake irradiance/vis light grid data", NUL
 				common->UpdateScreen( false );
 
 				//tr.envprobeJobList->Submit();
-				tr.envprobeJobList->Submit( NULL, JOBLIST_PARALLELISM_MAX_CORES );
+				tr.envprobeJobList->Submit( NULL, numThreads );
 				tr.envprobeJobList->Wait();
 			}
 
