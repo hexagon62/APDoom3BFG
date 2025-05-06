@@ -364,7 +364,15 @@ idRenderModel* idRenderModelManagerLocal::GetModel( const char* _modelName, bool
 				{
 					idFileLocal file( fileSystem->OpenFileReadMemory( generatedFileName ) );
 					model->PurgeModel();
-					if( !model->LoadBinaryModel( file, sourceTimeStamp ) )
+
+					// RB: .bglb also stores the timestamp of the modelDef .def file so changing the modelDef will trigger a reimport
+					ID_TIME_T declSourceTimeStamp = 0;
+					if( options != NULL )
+					{
+						declSourceTimeStamp = options->declSourceTimeStamp;
+					}
+
+					if( !model->LoadBinaryModel( file, sourceTimeStamp, declSourceTimeStamp ) )
 					{
 						if( isGLTF )
 						{
@@ -465,7 +473,19 @@ idRenderModel* idRenderModelManagerLocal::GetModel( const char* _modelName, bool
 		}
 		else
 		{
-			if( !model->LoadBinaryModel( file, sourceTimeStamp ) )
+			if( options != NULL )
+			{
+				idLib::Printf( "Trying to load with options %s\n", generatedFileName.c_str() );
+			}
+
+			// RB: .bglb also stores the timestamp of the modelDef .def file so changing the modelDef will trigger a reimport
+			ID_TIME_T declSourceTimeStamp = 0;
+			if( options != NULL )
+			{
+				declSourceTimeStamp = options->declSourceTimeStamp;
+			}
+
+			if( !model->LoadBinaryModel( file, sourceTimeStamp, declSourceTimeStamp ) )
 			{
 				model->InitFromFile( canonical, options );
 
@@ -1203,6 +1223,7 @@ void idImportOptions::Init( const char* commandline, const char* ospath )
 	reOrient			= ang_zero;
 	armature			= "";
 	noMikktspace		= false;
+	declSourceTimeStamp	= FILE_NOT_FOUND_TIMESTAMP;
 
 	src.Clear();
 	dest.Clear();

@@ -160,7 +160,7 @@ public:
 	virtual void				InitFromFile( const char* fileName, const idImportOptions* options ) = 0;
 
 	// Supports reading/writing binary file formats
-	virtual bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp ) = 0;
+	virtual bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp, const ID_TIME_T declSourceTimeStamp ) = 0;
 	virtual void				WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp = NULL ) const = 0;
 	virtual bool				SupportsBinaryModel() = 0;
 

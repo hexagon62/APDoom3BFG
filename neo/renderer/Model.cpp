@@ -382,7 +382,7 @@ void idRenderModelStatic::InitFromFile( const char* fileName, const idImportOpti
 idRenderModelStatic::LoadBinaryModel
 ========================
 */
-bool idRenderModelStatic::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp )
+bool idRenderModelStatic::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp, const ID_TIME_T declSourceTimeStampUnused )
 {
 	if( file == NULL )
 	{

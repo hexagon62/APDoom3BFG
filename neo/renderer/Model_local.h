@@ -54,7 +54,7 @@ public:
 	virtual						~idRenderModelStatic();
 
 	virtual void				InitFromFile( const char* fileName, const idImportOptions* options );
-	virtual bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp );
+	virtual bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp, const ID_TIME_T declSourceTimeStamp );
 	virtual void				WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp = NULL ) const;
 	virtual bool				SupportsBinaryModel()
 	{
@@ -218,7 +218,7 @@ class idRenderModelMD5 : public idRenderModelStatic
 	friend class				idRenderModelGLTF;
 public:
 	void				InitFromFile( const char* fileName, const idImportOptions* options ) override;
-	bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp ) override;
+	bool				LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp, const ID_TIME_T declSourceTimeStamp ) override;
 	void				WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp = NULL ) const override;
 	dynamicModel_t		IsDynamicModel() const override;
 	idBounds			Bounds( const struct renderEntity_s* ent ) const override;

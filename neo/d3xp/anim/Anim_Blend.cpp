@@ -3506,6 +3506,9 @@ bool idDeclModelDef::Parse( const char* text, const int textLength, bool allowBi
 					return false;
 				}
 
+				options.modelDefFileName = base->GetFileName();
+				options.declSourceTimeStamp = base->GetSourceFileTimestamp();
+
 				modelHandle = renderModelManager->FindModel( filename, &options );
 			}
 			else

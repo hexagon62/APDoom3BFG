@@ -3,7 +3,7 @@
 
 Doom 3 BFG Edition GPL Source Code
 Copyright (C) 2022-2023 Harrie van Ginneken
-Copyright (C) 2022-2024 Robert Beckebans
+Copyright (C) 2022-2025 Robert Beckebans
 
 This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").
 
@@ -49,7 +49,7 @@ idCVar gltf_modelSceneName( "gltf_modelSceneName", "Scene", CVAR_SYSTEM | CVAR_N
 idCVar gltf_animSampleRate( "gltf_animSampleRate", "24", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NEW, "The frame rate of the converted md5anim" );
 
 
-static const byte GLMB_VERSION = 104;
+static const byte GLMB_VERSION = 105;
 static const unsigned int GLMB_MAGIC = ( 'M' << 24 ) | ( 'L' << 16 ) | ( 'G' << 8 ) | GLMB_VERSION;
 static const char* GLTF_SnapshotName = "_GLTF_Snapshot_";
 static const idMat4 blenderToDoomTransform( idAngles( 0.0f, 0.0f, 90 ).ToMat3(), vec3_origin );
@@ -745,13 +745,13 @@ void idRenderModelGLTF::InitFromFile( const char* fileName, const idImportOption
 	}
 }
 
-bool idRenderModelGLTF::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp )
+bool idRenderModelGLTF::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTimeStamp, const ID_TIME_T declSourceTimeStamp )
 {
 	hasAnimations = false;
 	fileExclusive = false; // not written.
 	root = nullptr;
 
-	if( !idRenderModelStatic::LoadBinaryModel( file, sourceTimeStamp ) )
+	if( !idRenderModelStatic::LoadBinaryModel( file, sourceTimeStamp, declSourceTimeStamp ) )
 	{
 		data = nullptr;
 		return false;
@@ -763,6 +763,13 @@ bool idRenderModelGLTF::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTim
 	if( magic != GLMB_MAGIC )
 	{
 		data = nullptr;
+		return false;
+	}
+
+	// RB: trigger reimport if modelDef .def file changed
+	file->ReadBig( declTimeStamp );
+	if( !fileSystem->InProductionMode() && ( declSourceTimeStamp != FILE_NOT_FOUND_TIMESTAMP ) && ( declSourceTimeStamp != 0 ) && ( declSourceTimeStamp != declTimeStamp ) )
+	{
 		return false;
 	}
 
@@ -1640,6 +1647,7 @@ void idRenderModelGLTF::WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp /*
 	}
 
 	file->WriteBig( GLMB_MAGIC );
+	file->WriteBig( declTimeStamp );
 	file->WriteString( commandLine );
 	file->WriteBig( model_state );
 	file->WriteBig( rootID );

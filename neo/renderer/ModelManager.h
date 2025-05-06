@@ -54,10 +54,6 @@ public:
 
 class idImportOptions
 {
-private:
-	//idTokenizer				tokens;
-	//void					Reset( const char* commandline );
-
 public:
 	idStr					commandLine;
 	idStr					src;
@@ -65,7 +61,6 @@ public:
 	idStr					game;
 	idStr					prefix;
 	float					scale;
-	//exportType_t			type;
 	bool					ignoreMeshes;
 	bool					clearOrigin;
 	bool					clearOriginAxis;
@@ -89,12 +84,15 @@ public:
 	float					jointThreshold;
 	int						cycleStart;
 	idAngles				reOrient;
+
+	// RB begin
 	idStr					armature;
 	bool					noMikktspace;
+	idStr					modelDefFileName;		// only filename of the source modelDef because we don't want to parse it to avoid reloading loop
+	ID_TIME_T				declSourceTimeStamp;	// timestamp of the .def where this modelDef option comes from
+	// RB end
 
 	void Init( const char* commandline, const char* ospath );
-
-	//bool					JointInExportGroup( const char* jointname );
 };
 
 /*
