@@ -4731,12 +4731,18 @@ bool idDeclLocal::SourceFileChanged() const
 // RB begin
 ID_TIME_T idDeclLocal::GetSourceFileTimestamp() const
 {
-	if( sourceFile->fileSize <= 0 )
+	ID_TIME_T newTimestamp;
+	int newLength = fileSystem->ReadFile( GetFileName(), NULL, &newTimestamp );
+
+	if( newLength <= 0 )
 	{
-		return FILE_NOT_FOUND_TIMESTAMP;
+		if( sourceFile->fileSize <= 0 )
+		{
+			return FILE_NOT_FOUND_TIMESTAMP;
+		}
 	}
 
-	return sourceFile->timestamp;
+	return newTimestamp;
 }
 // RB end
 

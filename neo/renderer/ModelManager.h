@@ -3,7 +3,7 @@
 
 Doom 3 BFG Edition GPL Source Code
 Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company.
-Copyright (C) 2022 Robert Beckebans
+Copyright (C) 2022-2025 Robert Beckebans
 
 This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").
 
@@ -88,11 +88,14 @@ public:
 	// RB begin
 	idStr					armature;
 	bool					noMikktspace;
-	idStr					modelDefFileName;		// only filename of the source modelDef because we don't want to parse it to avoid reloading loop
+	idStr					modelDefName;
+	idStr					modelDefFileName;
 	ID_TIME_T				declSourceTimeStamp;	// timestamp of the .def where this modelDef option comes from
 	// RB end
 
-	void Init( const char* commandline, const char* ospath );
+	idImportOptions();
+	void					Reset();
+	void					Init( const char* commandline, const char* ospath );
 };
 
 /*

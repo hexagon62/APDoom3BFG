@@ -83,6 +83,8 @@ public:
 	virtual void				List() const;
 	virtual int					Memory() const;
 	virtual ID_TIME_T			Timestamp() const;
+	virtual ID_TIME_T			DeclTimestamp() const;	// RB
+	virtual const char*			GetModelDefName() const;
 	virtual int					NumSurfaces() const;
 	virtual int					NumBaseSurfaces() const;
 	virtual const modelSurface_t* Surface( int surfaceNum ) const;
@@ -159,6 +161,8 @@ protected:
 	bool						hasInteractingSurfaces;
 	bool						hasShadowCastingSurfaces;
 	ID_TIME_T					timeStamp;
+	ID_TIME_T					declTimeStamp;			// RB: only != 0 if initialized from modelDef
+	idStr						declModelDefName;		// RB
 
 	static idCVar				r_mergeModelSurfaces;	// combine model surfaces with the same material
 	static idCVar				r_slopVertex;			// merge xyz coordinates this far apart

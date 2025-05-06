@@ -75,7 +75,6 @@ private:
 	bool							fileExclusive;
 	bool							hasAnimations;
 
-	ID_TIME_T						declTimeStamp = 0;			// only != 1 if initialized from modelDef
 	float							maxJointVertDist = 10.0f;	// maximum distance a vertex is separated from a joint
 	idList<int, TAG_MODEL>			animIds;
 	idList<int, TAG_MODEL>			bones;

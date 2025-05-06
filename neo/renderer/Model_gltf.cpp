@@ -49,7 +49,7 @@ idCVar gltf_modelSceneName( "gltf_modelSceneName", "Scene", CVAR_SYSTEM | CVAR_N
 idCVar gltf_animSampleRate( "gltf_animSampleRate", "24", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NEW, "The frame rate of the converted md5anim" );
 
 
-static const byte GLMB_VERSION = 105;
+static const byte GLMB_VERSION = 106;
 static const unsigned int GLMB_MAGIC = ( 'M' << 24 ) | ( 'L' << 16 ) | ( 'G' << 8 ) | GLMB_VERSION;
 static const char* GLTF_SnapshotName = "_GLTF_Snapshot_";
 static const idMat4 blenderToDoomTransform( idAngles( 0.0f, 0.0f, 90 ).ToMat3(), vec3_origin );
@@ -490,6 +490,8 @@ void idRenderModelGLTF::InitFromFile( const char* fileName, const idImportOption
 	if( options )
 	{
 		commandLine = options->commandLine;
+		declModelDefName = options->modelDefName;
+		declTimeStamp = options->declSourceTimeStamp;
 		localOptions = const_cast<idImportOptions*>( options );
 	}
 	else
@@ -773,6 +775,7 @@ bool idRenderModelGLTF::LoadBinaryModel( idFile* file, const ID_TIME_T sourceTim
 		return false;
 	}
 
+	file->ReadString( declModelDefName );
 	file->ReadString( commandLine );
 	file->ReadBig( model_state );
 	file->ReadBig( rootID );
@@ -1648,6 +1651,7 @@ void idRenderModelGLTF::WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp /*
 
 	file->WriteBig( GLMB_MAGIC );
 	file->WriteBig( declTimeStamp );
+	file->WriteString( declModelDefName );
 	file->WriteString( commandLine );
 	file->WriteBig( model_state );
 	file->WriteBig( rootID );
@@ -1698,6 +1702,7 @@ void idRenderModelGLTF::WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp /*
 void idRenderModelGLTF::PurgeModel()
 {
 	idRenderModelStatic::PurgeModel();
+
 	purged = true;
 	md5joints.Clear();
 	defaultPose.Clear();

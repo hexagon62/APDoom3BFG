@@ -251,6 +251,12 @@ public:
 		return base->EverReferenced();
 	}
 
+	// Returns newest time stamp even if the file was changed since engine startup
+	ID_TIME_T			GetSourceFileTimestamp() const
+	{
+		return base->GetSourceFileTimestamp();
+	}
+
 public:
 	// Sets textSource to a default text if necessary.
 	// This may be overridden to provide a default definition based on the
