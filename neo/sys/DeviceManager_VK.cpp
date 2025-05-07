@@ -1538,35 +1538,24 @@ void DeviceManager_VK::Present()
 	m_PresentSemaphoreQueue.push( m_PresentSemaphore );
 	m_PresentSemaphore = m_PresentSemaphoreQueue.front();
 
-#if !defined(__APPLE__) || !defined( USE_MoltenVK )
-	// SRS - validation layer is present only when the vulkan loader + layers are enabled (i.e. not MoltenVK standalone)
-	if( m_DeviceParams.enableDebugRuntime )
+	// SRS - The following event queries provide explicit CPU/GPU synchronization (supports validation layer if enabled)
+	if constexpr( NUM_FRAME_DATA > 2 )
 	{
-		// according to vulkan-tutorial.com, "the validation layer implementation expects
-		// the application to explicitly synchronize with the GPU"
-		m_PresentQueue.waitIdle();
+		OPTICK_CATEGORY( "Vulkan_Sync3", Optick::Category::Wait );
+
+		// SRS - For triple buffering, sync on previous frame's command queue completion
+		m_NvrhiDevice->waitEventQuery( m_FrameWaitQuery );
 	}
-	else
-#endif
+
+	m_NvrhiDevice->resetEventQuery( m_FrameWaitQuery );
+	m_NvrhiDevice->setEventQuery( m_FrameWaitQuery, nvrhi::CommandQueue::Graphics );
+
+	if constexpr( NUM_FRAME_DATA < 3 )
 	{
-		if constexpr( NUM_FRAME_DATA > 2 )
-		{
-			OPTICK_CATEGORY( "Vulkan_Sync3", Optick::Category::Wait );
+		OPTICK_CATEGORY( "Vulkan_Sync2", Optick::Category::Wait );
 
-			// SRS - For triple buffering, sync on previous frame's command queue completion
-			m_NvrhiDevice->waitEventQuery( m_FrameWaitQuery );
-		}
-
-		m_NvrhiDevice->resetEventQuery( m_FrameWaitQuery );
-		m_NvrhiDevice->setEventQuery( m_FrameWaitQuery, nvrhi::CommandQueue::Graphics );
-
-		if constexpr( NUM_FRAME_DATA < 3 )
-		{
-			OPTICK_CATEGORY( "Vulkan_Sync2", Optick::Category::Wait );
-
-			// SRS - For double buffering, sync on current frame's command queue completion
-			m_NvrhiDevice->waitEventQuery( m_FrameWaitQuery );
-		}
+		// SRS - For double buffering, sync on current frame's command queue completion
+		m_NvrhiDevice->waitEventQuery( m_FrameWaitQuery );
 	}
 
 #if defined(__APPLE__) && defined( USE_MoltenVK )
