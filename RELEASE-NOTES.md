@@ -13,6 +13,27 @@ RBDOOM-3-BFG Release Notes - https://github.com/RobertBeckebans/RBDOOM-3-BFG
 Thank you for downloading RBDOOM-3-BFG.
 
 
+## .plan - May 7, 2025
+
+Changelog:
+
+* Improved multi-monitor support and fixed some potential issues with setups where the engine didn't want to start
+
+* New blood reflections system options with the settings: Static, Dynamic (SSR)
+
+* Remove waitIdle() and use normal sync when Vulkan Validation Layer enabled
+
+* Mix AO from _rmao images with screen space AO
+
+* reloadModels works with changed .def files now. So a model reimport is triggered by either updating the .glb file or by making changes to the modelDef
+
+* Added -mt[num threads] option to baking commands
+
+* Support path names longer than 260 chars on Windows (new limit is 1024 among all operating systems)
+
+
+
+
 ## .plan - April 26, 2025
 
 This test build ships with freshly baked environment probes that hide the monsters for the blood reflections.
