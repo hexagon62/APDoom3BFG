@@ -143,6 +143,14 @@ void idMenuScreen_Shell_SystemOptions::Initialize( idMenuHandler* data )
 	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_SSAO );
 	options->AddChild( control );
 
+	control = new( TAG_SWF ) idMenuWidget_ControlButton();
+	control->SetOptionType( OPTION_SLIDER_TEXT );
+	control->SetLabel( "Blood Reflections" );
+	control->SetDataSource( &systemData, idMenuDataSource_SystemSettings::SYSTEM_FIELD_BLOOD_REFLECTIONS );
+	control->SetupEvents( DEFAULT_REPEAT_TIME, options->GetChildren().Num() );
+	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_BLOOD_REFLECTIONS );
+	options->AddChild( control );
+
 	/*control = new( TAG_SWF ) idMenuWidget_ControlButton();
 	control->SetOptionType( OPTION_SLIDER_BAR );
 	control->SetLabel( "#str_swf_lodbias" );
@@ -439,6 +447,7 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::LoadData
 	originalRenderMode = r_renderMode.GetInteger();
 	originalAmbientBrightness = r_forceAmbient.GetFloat();
 	originalSSAO = r_useSSAO.GetInteger();
+	originalBloodReflections = r_useSSR.GetInteger();
 	originalPostProcessing = r_useFilmicPostFX.GetInteger();
 	originalCRTPostFX = r_useCRTPostFX.GetInteger();
 	// RB end
@@ -657,6 +666,13 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::AdjustFi
 			r_useSSAO.SetInteger( AdjustOption( r_useSSAO.GetInteger(), values, numValues, adjustAmount ) );
 			break;
 		}
+		case SYSTEM_FIELD_BLOOD_REFLECTIONS:
+		{
+			static const int numValues = 2;
+			static const int values[numValues] = { 0, 1 };
+			r_useSSR.SetInteger( AdjustOption( r_useSSR.GetInteger(), values, numValues, adjustAmount ) );
+			break;
+		}
 		case SYSTEM_FIELD_AMBIENT_BRIGHTNESS:
 		{
 			const float percent = LinearAdjust( r_forceAmbient.GetFloat(), 0.0f, 1.0f, 0.0f, 100.0f );
@@ -852,6 +868,16 @@ idSWFScriptVar idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings
 				return "#str_swf_disabled";
 			}
 
+		case SYSTEM_FIELD_BLOOD_REFLECTIONS:
+			if( r_useSSR.GetInteger() == 1 )
+			{
+				return "Dynamic (SSR)";
+			}
+			else
+			{
+				return "Static";
+			}
+
 		case SYSTEM_FIELD_AMBIENT_BRIGHTNESS:
 			return LinearAdjust( r_forceAmbient.GetFloat(), 0.0f, 1.0f, 0.0f, 100.0f );
 
@@ -909,6 +935,11 @@ bool idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsDataCh
 	}
 
 	if( originalSSAO != r_useSSAO.GetInteger() )
+	{
+		return true;
+	}
+
+	if( originalBloodReflections != r_useSSR.GetInteger() )
 	{
 		return true;
 	}
