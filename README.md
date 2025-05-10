@@ -45,7 +45,7 @@ This file contains the following sections:
 
 `RBDOOM-3-BFG is a modernization effort of DOOM-3-BFG.`
 
-RBDOOM-3-BFG is based on DOOM-3-BFG and the goal of this port is to bring DOOM-3-BFG up to latest technology in 2025 making it closer to Doom 2016 while still remaining a DOOM 3 port regarding the gameplay. 
+RBDOOM-3-BFG is based on DOOM-3-BFG and the goal of this port is to bring DOOM-3-BFG up to latest technology in 2025 making it closer to Doom 2016 while still remaining a DOOM 3 port regarding the gameplay.
 
 I started this project in 2012 and focused on making this code being future proof so other cool projects can build interesting things on top of it without the need to fix a lot of stuff first. Over 40 people all over the world contributed cool patches. Some results are:
 

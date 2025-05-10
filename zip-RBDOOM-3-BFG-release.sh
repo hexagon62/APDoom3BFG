@@ -6,7 +6,7 @@ date_string=$(date +"%Y%m%d")
 # Get first 7 characters of the git hash
 git_hash=$(git rev-parse --short=7 HEAD)
 
-buildversion="1.6.0.20"
+buildversion="1.6.0.22"
 filename="RBDOOM-3-BFG-${buildversion}-lite-win64-${date_string}-git-${git_hash}.7z"
 
 # Copy the base file to the new filename

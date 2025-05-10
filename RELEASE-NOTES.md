@@ -20,9 +20,9 @@ _______________________________________
 10 May 2025 - RBDOOM-3-BFG 1.6.0
 _______________________________
 
-<img src="https://i.imgur.com/vIPuu3x.png">
+<img src="https://i.imgur.com/56CTz1w.jpeg">
 
-# RBDOOM-3-BFG 1.6.0 adds Retro Rendering and Better Modding Support
+# RBDOOM-3-BFG 1.6.0: Retro Revolution and Modding Mastery
 
 ## Installation
 
@@ -40,9 +40,11 @@ This is not just a patch — it's a groundbreaking new major release, packed wit
 
 Experience the nostalgia of the 8-bit and 16-bit eras with the Retro Rendering Modes, including the Commodore 64, Amstrad CPC 6128, Sega Genesis/Megadrive and Sony PSX styles.
 
+<img src="https://i.imgur.com/BdNIE8H.png" width="1024">
+
 Immerse yourself in the authentic Commodore 64 mode, faithfully replicating the original 16-color palette. Step into the vibrant world of Sega Genesis, with its impressive 512-color range, limited to 61 colors on screen simultaneously. And for those seeking a true PlayStation experience, the PSX mode has been improved to be more faithful to the original output of the PS1. It emulates the lack of floating point rasterizer hardware and affine texture mapping, while also bringing back unfiltered textures and adding a captivating screen space dithering effect.
 
-The retro rendering modes transport you back to the golden age of gaming, with a resolution that mimics the beloved 320x240 display, now extended to a widescreen 480x270 format. 
+The retro rendering modes transport you back to the golden age of gaming, with a resolution that mimics the beloved 320x240 display, now extended to a widescreen 480x270 format.
 To enhance the arcade and TV feel, 3 new CRT filters are included that overlay the entire game, including Doom 1 & 2.
 
 To access these retro rendering modes, simply navigate to the menu options and select your desired mode. Alternatively, you can control the rendering mode by modifying the `r_renderMode` variable. The available values for `r_renderMode` are as follows: Default (0) for Doom 3, 2-bit CGA (1), 2-bit CGA Highres(2), Commodore 64 (3), Commodore 64 Highres (4), Amstrad CPC (5), Amstrad CPC Highres (6), Sega Genesis (7), Sega Genesis Highres (8) and Sony PSX (9).
