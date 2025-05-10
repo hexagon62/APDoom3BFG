@@ -20,8 +20,8 @@ cp build/tools/compilers/release/rbdmap.exe .
 7z a "$filename" RBDoom3BFG.exe rbdmap.exe
 
 7z a "$filename" README.md RELEASE-NOTES.md LICENSE.md LICENSE_EXCEPTIONS.md \
-    base/*.cfg base/def/*.def base/materials/*.mtr \
-    base/script/*.script base/textures/common base/textures/editor \
+    base/*.cfg base/materials/*.mtr \
+    base/textures/common base/textures/editor \
     base/maps/zoomaps -x!generated -xr!autosave -xr!*.xcf -xr!*.blend
 
 #7z a "$filename" base/maps/game/*_extra_ents.map
